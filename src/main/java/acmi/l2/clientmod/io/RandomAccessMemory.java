@@ -31,12 +31,20 @@ import java.util.Arrays;
 public class RandomAccessMemory implements RandomAccess {
     private final String name;
     private final Charset charset;
+    private IOFactory ioFactory;
+    private Context context;
     private ByteBuffer buffer;
 
-    public RandomAccessMemory(String name, byte[] data, Charset charset) {
+    public <T extends Context> RandomAccessMemory(String name, byte[] data, Charset charset, IOFactory<T> ioFactory, T context) {
         this.name = name;
         this.buffer = ByteBuffer.wrap(data);
         this.charset = charset;
+        this.ioFactory = ioFactory;
+        this.context = context;
+    }
+
+    public RandomAccessMemory(String name, byte[] data, Charset charset) {
+        this(name, data, charset, null, null);
     }
 
     @Override
@@ -47,6 +55,24 @@ public class RandomAccessMemory implements RandomAccess {
     @Override
     public Charset getCharset() {
         return charset;
+    }
+
+    @Override
+    public IOFactory getIOFactory() {
+        return ioFactory;
+    }
+
+    public void setIoFactory(IOFactory ioFactory) {
+        this.ioFactory = ioFactory;
+    }
+
+    @Override
+    public Context getContext() {
+        return context;
+    }
+
+    public void setContext(Context context) {
+        this.context = context;
     }
 
     @Override

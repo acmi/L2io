@@ -71,16 +71,16 @@ public class UnrealPackage implements Closeable {
 
     private List<Generation> generations;
 
-    public UnrealPackage(String path, boolean readOnly) throws IOException {
-        this(new RandomAccessFile(path, readOnly, defaultCharset));
+    public <T extends Context> UnrealPackage(String path, boolean readOnly, IOFactory<T> ioFactory, T context) throws IOException {
+        this(new RandomAccessFile(path, readOnly, defaultCharset, ioFactory, context));
     }
 
-    public UnrealPackage(File file, boolean readOnly) throws IOException {
-        this(new RandomAccessFile(file, readOnly, defaultCharset));
+    public <T extends Context> UnrealPackage(File file, boolean readOnly, IOFactory<T> ioFactory, T context) throws IOException {
+        this(new RandomAccessFile(file, readOnly, defaultCharset, ioFactory, context));
     }
 
-    public UnrealPackage(String name, byte[] data) throws IOException {
-        this(new RandomAccessMemory(name, data, defaultCharset));
+    public <T extends Context> UnrealPackage(String name, byte[] data, IOFactory<T> ioFactory, T context) throws IOException {
+        this(new RandomAccessMemory(name, data, defaultCharset, ioFactory, context));
     }
 
     public UnrealPackage(RandomAccess file) throws IOException {

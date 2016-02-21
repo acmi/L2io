@@ -19,14 +19,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package acmi.l2.clientmod.io.annotation;
+package acmi.l2.clientmod.io;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD})
-public @interface WriteMethod {
+public class ObjectInputStream<T extends Context> extends DataInputStream implements ObjectInput<T> {
+    private final IOFactory<T> ioFactory;
+    private final T context;
+
+    public ObjectInputStream(InputStream in, Charset charset, IOFactory<T> ioFactory, T context) {
+        this(in, 0, charset, ioFactory, context);
+    }
+
+    public ObjectInputStream(InputStream in, int position, Charset charset, IOFactory<T> ioFactory, T context) {
+        super(in, position, charset);
+        this.ioFactory = ioFactory;
+        this.context = context;
+    }
+
+    @Override
+    public IOFactory<T> getIOFactory() {
+        return ioFactory;
+    }
+
+    @Override
+    public T getContext() {
+        return context;
+    }
 }

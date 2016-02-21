@@ -24,7 +24,7 @@ package acmi.l2.clientmod.io;
 import java.io.Closeable;
 import java.io.IOException;
 
-public interface RandomAccess extends DataInput, DataOutput, Closeable {
+public interface RandomAccess<T extends Context> extends ObjectInput<T>, ObjectOutput<T>, Closeable {
     String getName();
 
     void setPosition(int position) throws IOException;
@@ -32,4 +32,8 @@ public interface RandomAccess extends DataInput, DataOutput, Closeable {
     void trimToPosition() throws IOException;
 
     RandomAccess openNewSession(boolean readOnly) throws IOException;
+
+    default T getContext() {
+        return null;
+    }
 }

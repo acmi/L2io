@@ -28,7 +28,7 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 
 public class DataInputStream extends FilterInputStream implements DataInput {
-    private Charset charset;
+    private final Charset charset;
     private int position;
 
     public DataInputStream(InputStream in, Charset charset) {

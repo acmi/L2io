@@ -19,14 +19,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package acmi.l2.clientmod.io.annotation;
+package acmi.l2.clientmod.io;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.io.IOException;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD})
-public @interface WriteMethod {
+public interface ObjectOutput<T extends Context> extends DataOutput {
+    IOFactory<T> getIOFactory();
+
+    T getContext();
+
+    default void write(Object object) throws IOException {
+        if (getIOFactory() == null)
+            throw new IllegalStateException("IOFactory is null");
+
+        IOFactory.IO io = getIOFactory().forClass(object.getClass());
+        io.writeObject(object, this);
+    }
 }

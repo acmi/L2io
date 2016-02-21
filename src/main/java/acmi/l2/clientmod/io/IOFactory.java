@@ -35,42 +35,53 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class IOFactory {
-    private static final Map<Class, IO> cache = new HashMap<>();
+public class IOFactory<C extends Context> {
+    protected final Map<Class, IO> cache = new HashMap<>();
 
-    public static <T> IO<T> forClass(Class<T> clazz) {
+    public <T, U extends T> IO<T, C> forClass(Class<U> clazz) {
         if (!cache.containsKey(clazz)) {
-            List<IOBiConsumer<T, DataInput>> read = new ArrayList<>();
-            List<IOBiConsumer<T, DataOutput>> write = new ArrayList<>();
+            List<IOBiConsumer<T, ObjectInput<C>>> read = new ArrayList<>();
+            List<IOBiConsumer<T, ObjectOutput<C>>> write = new ArrayList<>();
 
             forClass(clazz, read, write);
 
-            cache.put(clazz, new IO<T>() {
+            cache.put(clazz, new IO<T, C>() {
                 @Override
-                public void writeObject(T obj, DataOutput output) throws IOException {
-                    for (IOBiConsumer<T, DataOutput> writeAction : write)
-                        writeAction.accept(obj, output);
+                public T instantiate(ObjectInput<C> input) throws IOException {
+                    try {
+                        return clazz.newInstance();
+                    } catch (InstantiationException e) {
+                        throw new RuntimeException(e);
+                    } catch (IllegalAccessException e) {
+                        throw new IllegalStateException(e);
+                    }
                 }
 
                 @Override
-                public void readObject(T obj, DataInput input) throws IOException {
-                    for (IOBiConsumer<T, DataInput> readAction : read)
+                public <S extends T> void readObject(S obj, ObjectInput<C> input) throws IOException {
+                    for (IOBiConsumer<T, ObjectInput<C>> readAction : read)
                         readAction.accept(obj, input);
+                }
+
+                @Override
+                public <S extends T> void writeObject(S obj, ObjectOutput<C> output) throws IOException {
+                    for (IOBiConsumer<T, ObjectOutput<C>> writeAction : write)
+                        writeAction.accept(obj, output);
                 }
             });
         }
         return cache.get(clazz);
     }
 
-    private static <T> void forClass(Class<T> clazz, List<IOBiConsumer<T, DataInput>> read, List<IOBiConsumer<T, DataOutput>> write) {
+    private <T, U extends T> void forClass(Class<U> clazz, List<IOBiConsumer<T, ObjectInput<C>>> read, List<IOBiConsumer<T, ObjectOutput<C>>> write) {
         if (clazz.getSuperclass() != null && clazz.getSuperclass() != Object.class) {
-            IO<? super T> superIO = forClass(clazz.getSuperclass());
+            IO<? super T, C> superIO = forClass(clazz.getSuperclass());
             read.add(superIO::readObject);
             write.add(superIO::writeObject);
         }
 
-        List<IOBiConsumer<T, DataInput>> read1 = new ArrayList<>();
-        List<IOBiConsumer<T, DataOutput>> write1 = new ArrayList<>();
+        List<IOBiConsumer<T, ObjectInput<C>>> read1 = new ArrayList<>();
+        List<IOBiConsumer<T, ObjectOutput<C>>> write1 = new ArrayList<>();
         for (Field field : clazz.getDeclaredFields()) {
             if (Modifier.isTransient(field.getModifiers()) ||
                     field.isSynthetic())
@@ -87,7 +98,7 @@ public class IOFactory {
                         throw new RuntimeException(e);
                     }
                 }
-                IO<T> io = cache.get(custom.value());
+                IO<T, C> io = cache.get(custom.value());
                 read1.add(io::readObject);
                 write1.add(io::writeObject);
             } else {
@@ -111,7 +122,7 @@ public class IOFactory {
         }
     }
 
-    private static <T> void io(Class type, IOFunction<T, Object> getter, IOBiConsumer<T, IOSupplier> setter, Function<Class<? extends Annotation>, Annotation> getAnnotation, List<IOBiConsumer<T, DataInput>> read, List<IOBiConsumer<T, DataOutput>> write) {
+    protected <T> void io(Class type, IOFunction<T, Object> getter, IOBiConsumer<T, IOSupplier> setter, Function<Class<? extends Annotation>, Annotation> getAnnotation, List<IOBiConsumer<T, ObjectInput<C>>> read, List<IOBiConsumer<T, ObjectOutput<C>>> write) {
         if (type == Byte.TYPE || type == Byte.class) {
             read.add((object, dataInput) -> setter.accept(object, () -> (byte) dataInput.readUnsignedByte()));
             write.add((object, dataOutput) -> dataOutput.writeByte(((Byte) getter.apply(object))));
@@ -164,10 +175,11 @@ public class IOFactory {
             read.add((object, dataInput) -> {
                 Object array = Array.newInstance(componentType, lenReader.apply(dataInput));
                 for (int i = 0; i < Array.getLength(array); i++) {
-                    Object obj = instantiate(componentType);
+                    Object obj = io.instantiate(dataInput);
                     io.readObject(obj, dataInput);
                     Array.set(array, i, obj);
                 }
+                setter.accept(object, () -> array);
             });
             write.add((object, dataOutput) -> {
                 Object array = getter.apply(object);
@@ -179,7 +191,7 @@ public class IOFactory {
         } else {
             IO io = forClass(type);
             read.add((object, dataInput) -> {
-                Object obj = instantiate(type);
+                Object obj = io.instantiate(dataInput);
                 io.readObject(obj, dataInput);
                 setter.accept(object, () -> obj);
             });
@@ -187,17 +199,7 @@ public class IOFactory {
         }
     }
 
-    private static Object instantiate(Class clazz) {
-        try {
-            return clazz.newInstance();
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void fieldSet(Field field, Object obj, Object value) {
+    protected void fieldSet(Field field, Object obj, Object value) {
         try {
             field.set(obj, value);
         } catch (IllegalAccessException e) {
@@ -205,7 +207,7 @@ public class IOFactory {
         }
     }
 
-    private static Object fieldGet(Field field, Object obj) {
+    protected Object fieldGet(Field field, Object obj) {
         try {
             return field.get(obj);
         } catch (IllegalAccessException e) {
@@ -213,7 +215,7 @@ public class IOFactory {
         }
     }
 
-    private static void invokeMethod(Method method, Object obj, Object... params) {
+    protected void invokeMethod(Method method, Object obj, Object... params) {
         try {
             method.invoke(obj, params);
         } catch (IllegalAccessException e) {
@@ -221,5 +223,13 @@ public class IOFactory {
         } catch (InvocationTargetException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public interface IO<T, C extends Context> {
+        T instantiate(ObjectInput<C> input) throws IOException;
+
+        <S extends T> void readObject(S obj, ObjectInput<C> input) throws IOException;
+
+        <S extends T> void writeObject(S obj, ObjectOutput<C> output) throws IOException;
     }
 }

@@ -21,7 +21,7 @@
  */
 package acmi.l2.clientmod.io.annotation;
 
-import acmi.l2.clientmod.io.IO;
+import acmi.l2.clientmod.io.IOFactory;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -31,5 +31,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD})
 public @interface Custom {
-    Class<? extends IO> value();
+    Class<? extends IOFactory.IO> value();
 }

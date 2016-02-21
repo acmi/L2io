@@ -36,8 +36,10 @@ public class RandomAccessFile implements RandomAccess {
     protected final int startOffset;
 
     private final Charset charset;
+    private IOFactory ioFactory;
+    private Context context;
 
-    public RandomAccessFile(File f, boolean readOnly, Charset charset) throws IOException {
+    public <T extends Context> RandomAccessFile(File f, boolean readOnly, Charset charset, IOFactory<T> ioFactory, T context) throws IOException {
         file = new java.io.RandomAccessFile(f, readOnly ? "r" : "rw");
         packageName = f.getName().substring(0, f.getName().lastIndexOf('.'));
         path = f.getPath();
@@ -64,12 +66,22 @@ public class RandomAccessFile implements RandomAccess {
         }
 
         this.charset = charset;
+        this.ioFactory = ioFactory;
+        this.context = context;
 
         setPosition(0);
     }
 
+    public RandomAccessFile(File f, boolean readOnly, Charset charset) throws IOException {
+        this(f, readOnly, charset, null, null);
+    }
+
+    public <T extends Context> RandomAccessFile(String path, boolean readOnly, Charset charset, IOFactory<T> ioFactory, T context) throws IOException {
+        this(new File(path), readOnly, charset, ioFactory, context);
+    }
+
     public RandomAccessFile(String path, boolean readOnly, Charset charset) throws IOException {
-        this(new File(path), readOnly, charset);
+        this(path, readOnly, charset, null, null);
     }
 
     private static String getCryptHeader(java.io.RandomAccessFile file) throws IOException {
@@ -102,6 +114,24 @@ public class RandomAccessFile implements RandomAccess {
     @Override
     public Charset getCharset() {
         return charset;
+    }
+
+    @Override
+    public IOFactory getIOFactory() {
+        return ioFactory;
+    }
+
+    public void setIoFactory(IOFactory ioFactory) {
+        this.ioFactory = ioFactory;
+    }
+
+    @Override
+    public Context getContext() {
+        return context;
+    }
+
+    public void setContext(Context context) {
+        this.context = context;
     }
 
     @Override
@@ -169,6 +199,6 @@ public class RandomAccessFile implements RandomAccess {
 
     @Override
     public RandomAccessFile openNewSession(boolean readOnly) throws IOException {
-        return new RandomAccessFile(getPath(), readOnly, getCharset());
+        return new RandomAccessFile(getPath(), readOnly, getCharset(), getIOFactory(), getContext());
     }
 }
