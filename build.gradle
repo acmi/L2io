@@ -1,0 +1,4 @@
+group 'acmi.l2.clientmod'
+version '1.0-beta'
+
+apply plugin: 'java'
