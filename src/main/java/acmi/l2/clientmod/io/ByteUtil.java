@@ -29,29 +29,41 @@ public class ByteUtil {
     public static byte[] compactIntToByteArray(int v) {
         boolean negative = v < 0;
         v = Math.abs(v);
-        int[] bytes = new int[]{
-                (v) & 0b00111111,
-                (v >> 6) & 0b01111111,
-                (v >> 6 + 7) & 0b01111111,
-                (v >> 6 + 7 + 7) & 0b01111111,
-                (v >> 6 + 7 + 7 + 7) & 0b01111111
-        };
+        byte[] bytes = new byte[sizeOfCompactInt(v)];
 
         if (negative) bytes[0] |= 0b10000000;
 
-        int lastInd = 4;
-        while (lastInd > 0 && bytes[lastInd] == 0) {
-            lastInd--;
-        }
+        bytes[0] |= v & 0b00111111;
+        v >>= 6;
 
-        byte[] res = new byte[lastInd + 1];
-
-        for (int i = 0; i <= lastInd; i++) {
-            if (i != lastInd)
-                bytes[i] |= i == 0 ? 0b01000000 : 0b10000000;
-            res[i] = (byte) bytes[i];
+        if (v > 0) {
+            bytes[0] |= 0b01000000;
+            for (int i = 1; i < bytes.length; i++) {
+                if (i != bytes.length - 1)
+                    bytes[i] |= 0b10000000;
+                bytes[i] |= v & 0b01111111;
+                v >>= 7;
+            }
         }
-        return res;
+        return bytes;
+    }
+
+    public static int sizeOfCompactInt(int i) {
+        if (i == Integer.MIN_VALUE)
+            return 5;
+
+        i = Math.abs(i);
+
+        if (i < 1 << 6)
+            return 1;
+        else if (i < 1 << (6 + 7))
+            return 2;
+        else if (i < 1 << (6 + 7 + 7))
+            return 3;
+        else if (i < 1 << (6 + 7 + 7 + 7))
+            return 4;
+        else
+            return 5;
     }
 
     public static UUID uuidFromBytes(byte[] uuidBytes) {
