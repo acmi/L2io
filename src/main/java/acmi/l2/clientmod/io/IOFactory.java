@@ -83,30 +83,10 @@ public class IOFactory<C extends Context> {
         List<IOBiConsumer<T, ObjectInput<C>>> read1 = new ArrayList<>();
         List<IOBiConsumer<T, ObjectOutput<C>>> write1 = new ArrayList<>();
         for (Field field : clazz.getDeclaredFields()) {
-            if (Modifier.isTransient(field.getModifiers()) ||
-                    field.isSynthetic())
+            if (!inspectField(field))
                 continue;
 
-            field.setAccessible(true);
-
-            Custom custom = field.getAnnotation(Custom.class);
-            if (custom != null) {
-                if (!cache.containsKey(custom.value())) {
-                    try {
-                        cache.put(custom.value(), custom.value().newInstance());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                IO<T, C> io = cache.get(custom.value());
-                read1.add(io::readObject);
-                write1.add(io::writeObject);
-            } else {
-                io(field.getType(),
-                        object -> fieldGet(field, object), (obj, val) -> fieldSet(field, obj, val),
-                        field::getAnnotation,
-                        read1, write1);
-            }
+            handleField(field, read1, write1);
         }
 
         for (Method method : clazz.getDeclaredMethods()) {
@@ -119,6 +99,34 @@ public class IOFactory<C extends Context> {
                 write.add((o, dataOutput) -> invokeMethod(method, o, dataOutput));
             else
                 write.addAll(write1);
+        }
+    }
+
+    protected boolean inspectField(Field field) {
+        return !Modifier.isTransient(field.getModifiers()) &&
+                !field.isSynthetic();
+    }
+
+    protected <T> void handleField(Field field, List<IOBiConsumer<T, ObjectInput<C>>> read1, List<IOBiConsumer<T, ObjectOutput<C>>> write1) {
+        field.setAccessible(true);
+
+        Custom custom = field.getAnnotation(Custom.class);
+        if (custom != null) {
+            if (!cache.containsKey(custom.value())) {
+                try {
+                    cache.put(custom.value(), custom.value().newInstance());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            IO<T, C> io = cache.get(custom.value());
+            read1.add(io::readObject);
+            write1.add(io::writeObject);
+        } else {
+            io(field.getType(),
+                    object -> fieldGet(field, object), (obj, val) -> fieldSet(field, obj, val),
+                    field::getAnnotation,
+                    read1, write1);
         }
     }
 

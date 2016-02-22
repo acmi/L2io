@@ -121,7 +121,7 @@ public class RandomAccessFile implements RandomAccess {
         return ioFactory;
     }
 
-    public void setIoFactory(IOFactory ioFactory) {
+    public void setIOFactory(IOFactory ioFactory) {
         this.ioFactory = ioFactory;
     }
 
