@@ -266,21 +266,19 @@ public class UnrealPackage implements Closeable {
         return objectReference(index);
     }
 
-    @Deprecated
-    public int objectReference(String name) {
+    public int objectReference(String name, String clazz) {
         int ref;
 
-        if ((ref = importReference(name)) != 0)
+        if ((ref = importReference(name, clazz)) != 0)
             return ref;
 
-        if ((ref = exportReference(name)) != 0)
+        if ((ref = exportReference(name, clazz)) != 0)
             return ref;
 
         return 0;
     }
 
-    @Deprecated
-    public int importReference(String name) {
+    public int importReference(String name, String clazz) {
         try {
             return getImportTable().stream()
                     .filter(entry -> entry.getObjectFullName().equalsIgnoreCase(name))
@@ -292,8 +290,7 @@ public class UnrealPackage implements Closeable {
         }
     }
 
-    @Deprecated
-    public int exportReference(String name) {
+    public int exportReference(String name, String clazz) {
         try {
             return getExportTable().stream()
                     .filter(entry -> entry.getObjectInnerFullName().equalsIgnoreCase(name))
@@ -416,9 +413,9 @@ public class UnrealPackage implements Closeable {
 
     public void addExportEntry(String objectName, String objectClass, String objectSuperClass, byte[] data, int flags) throws IOException {
         Map<String, String> classes = new HashMap<>();
-        if (objectClass != null && objectReference(objectClass) == 0)
+        if (objectClass != null && objectReference(objectClass, "Core.Class") == 0)
             classes.put(objectClass, "Core.Class");
-        if (objectSuperClass != null && objectReference(objectSuperClass) == 0)
+        if (objectSuperClass != null && objectReference(objectSuperClass, "Core.Class") == 0)
             classes.put(objectClass, "Core.Class");
         if (!classes.isEmpty())
             addImportEntries(classes, false);
@@ -432,7 +429,7 @@ public class UnrealPackage implements Closeable {
 
         file.setPosition(getDataEndOffset());
         List<ExportEntry> exportTable = new ArrayList<>(getExportTable());
-        int pckgInd = importReference("Core.Package");
+        int pckgInd = importReference("Core.Package", "Core.Class");
         byte[] pckgData = compactIntToByteArray(nameReference("None"));
 
         int pckg = 0;
@@ -455,8 +452,8 @@ public class UnrealPackage implements Closeable {
 
         exportEntry = new ExportEntry(this,
                 0,
-                objectReference(objectClass),
-                objectReference(objectSuperClass),
+                objectReference(objectClass, "Core.Class"),
+                objectReference(objectSuperClass, "Core.Class"),
                 pckg,
                 nameReference(namePath[namePath.length - 1]),
                 flags,
