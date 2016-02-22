@@ -28,12 +28,17 @@ import acmi.l2.clientmod.util.function.IOSupplier;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import static acmi.l2.clientmod.util.ReflectionUtil.*;
 
 public class IOFactory<C extends Context> {
     protected final Map<Class, IO> cache = new HashMap<>();
@@ -204,32 +209,6 @@ public class IOFactory<C extends Context> {
                 setter.accept(object, () -> obj);
             });
             write.add((object, dataOutput) -> io.writeObject(getter.apply(object), dataOutput));
-        }
-    }
-
-    protected void fieldSet(Field field, Object obj, Object value) {
-        try {
-            field.set(obj, value);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    protected Object fieldGet(Field field, Object obj) {
-        try {
-            return field.get(obj);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    protected void invokeMethod(Method method, Object obj, Object... params) {
-        try {
-            method.invoke(obj, params);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e);
         }
     }
 
