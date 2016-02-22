@@ -818,20 +818,23 @@ public class UnrealPackage implements Closeable {
             return getObjectInnerFullName();
         }
 
+        public abstract String getFullClassName();
+
+        @Override
         public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (!(o instanceof Entry)) {
-                return false;
-            }
+            if (this == o) return true;
+            if (!(o instanceof Entry)) return false;
+
             Entry entry = (Entry) o;
 
-            return (objectName == entry.objectName) && (objectPackage == entry.objectPackage);
+            return getObjectFullName().equalsIgnoreCase(entry.getObjectFullName()) &&
+                    getFullClassName().equalsIgnoreCase(entry.getFullClassName());
+
         }
 
+        @Override
         public int hashCode() {
-            return (objectPackage << 16) + objectName;
+            return Objects.hash(getObjectFullName(), getFullClassName());
         }
 
         public String toString() {
@@ -867,6 +870,11 @@ public class UnrealPackage implements Closeable {
 
         public Entry getObjectSuperClass() {
             return getUnrealPackage().objectReference(objectSuperClass);
+        }
+
+        @Override
+        public String getFullClassName() {
+            return getObjectClass() != null ? getObjectClass().getObjectFullName() : "Core.Class";
         }
 
         public int getObjectFlags() {
