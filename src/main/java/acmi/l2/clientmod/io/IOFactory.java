@@ -37,45 +37,107 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.logging.Logger;
 
 import static acmi.l2.clientmod.util.ReflectionUtil.*;
 
 public class IOFactory<C extends Context> {
+    protected Logger log = Logger.getLogger(toString());
+
     protected final Map<Class, IO> cache = new HashMap<>();
 
-    public <T, U extends T> IO<T, C> forClass(Class<U> clazz) {
+    public IO<Object, C> forClass(Class<?> clazz) {
         if (!cache.containsKey(clazz)) {
-            List<IOBiConsumer<T, ObjectInput<C>>> read = new ArrayList<>();
-            List<IOBiConsumer<T, ObjectOutput<C>>> write = new ArrayList<>();
-
-            forClass(clazz, read, write);
-
-            cache.put(clazz, new IO<T, C>() {
-                @Override
-                public T instantiate(ObjectInput<C> input) throws IOException {
-                    try {
-                        return clazz.newInstance();
-                    } catch (InstantiationException e) {
-                        throw new RuntimeException(e);
-                    } catch (IllegalAccessException e) {
-                        throw new IllegalStateException(e);
-                    }
-                }
-
-                @Override
-                public <S extends T> void readObject(S obj, ObjectInput<C> input) throws IOException {
-                    for (IOBiConsumer<T, ObjectInput<C>> readAction : read)
-                        readAction.accept(obj, input);
-                }
-
-                @Override
-                public <S extends T> void writeObject(S obj, ObjectOutput<C> output) throws IOException {
-                    for (IOBiConsumer<T, ObjectOutput<C>> writeAction : write)
-                        writeAction.accept(obj, output);
-                }
-            });
+            createForClass(clazz);
         }
+        log.fine(clazz + "->" + cache.get(clazz));
         return cache.get(clazz);
+    }
+
+    protected void createForClass(Class<?> clazz) {
+        List<IOBiConsumer<Object, ObjectInput<C>>> read = new ArrayList<>();
+        List<IOBiConsumer<Object, ObjectOutput<C>>> write = new ArrayList<>();
+
+        IO<Object, C> io = createIO(clazz, read, write);
+
+        log.fine("Create io for " + clazz);
+
+        cache.put(clazz, io);
+
+        forClass(clazz, read, write);
+    }
+
+    protected IO<Object, C> createIO(Class<?> clazz, List<IOBiConsumer<Object, ObjectInput<C>>> read, List<IOBiConsumer<Object, ObjectOutput<C>>> write) {
+        return new IO<Object, C>() {
+            private IOFunction<ObjectInput<C>, Object> instantiator;
+            private IOBiConsumer<Object, ObjectInput<C>> reader;
+            private IOBiConsumer<Object, ObjectOutput<C>> writer;
+
+            @Override
+            public Object instantiate(ObjectInput<C> input) throws IOException {
+                if (instantiator == null) {
+                    instantiator = createInstantiator(clazz);
+                    log.fine("CreateInstantiator for " + clazz);
+                }
+                Object obj = instantiator.apply(input);
+                log.fine(this + ".instantiate " + obj);
+                return obj;
+            }
+
+            @Override
+            public <S> void readObject(S obj, ObjectInput<C> input) throws IOException {
+                if (reader == null) {
+                    reader = createReader(clazz, read);
+                    log.fine("CreateReader for " + clazz);
+                }
+                reader.accept(obj, input);
+                log.fine(this + ".read " + obj);
+            }
+
+            @Override
+            public <S> void writeObject(S obj, ObjectOutput<C> output) throws IOException {
+                if (writer == null) {
+                    writer = createWriter(clazz, write);
+                    log.fine("CreateWriter for " + clazz);
+                }
+                writer.accept(obj, output);
+                log.fine(this + ".write " + obj);
+            }
+
+            @Override
+            public String toString() {
+                return "IO[" + clazz + "]";
+            }
+        };
+    }
+
+    protected IOFunction<ObjectInput<C>, Object> createInstantiator(Class<?> clazz) {
+        return input -> {
+            try {
+                Object obj = clazz.newInstance();
+                log.fine("IO[" + clazz + "].newInstance " + obj);
+                return obj;
+            } catch (InstantiationException e) {
+                throw new RuntimeException(e);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException(e);
+            }
+        };
+    }
+
+    protected IOBiConsumer<Object, ObjectInput<C>> createReader(Class<?> clazz, List<IOBiConsumer<Object, ObjectInput<C>>> read) {
+        return (obj, input) -> {
+            for (IOBiConsumer<Object, ObjectInput<C>> readAction : read) {
+                readAction.accept(obj, input);
+            }
+        };
+    }
+
+    protected IOBiConsumer<Object, ObjectOutput<C>> createWriter(Class<?> clazz, List<IOBiConsumer<Object, ObjectOutput<C>>> write) {
+        return (obj, output) -> {
+            for (IOBiConsumer<Object, ObjectOutput<C>> writeAction : write)
+                writeAction.accept(obj, output);
+        };
     }
 
     private <T, U extends T> void forClass(Class<U> clazz, List<IOBiConsumer<T, ObjectInput<C>>> read, List<IOBiConsumer<T, ObjectOutput<C>>> write) {
@@ -94,21 +156,26 @@ public class IOFactory<C extends Context> {
             handleField(field, read1, write1);
         }
 
+        boolean readMethod = false;
+        boolean writeMethod = false;
         for (Method method : clazz.getDeclaredMethods()) {
-            if (method.isAnnotationPresent(ReadMethod.class))
+            if (method.isAnnotationPresent(ReadMethod.class)) {
                 read.add((o, dataInput) -> invokeMethod(method, o, dataInput));
-            else
-                read.addAll(read1);
+                readMethod = true;
+            }
 
-            if (method.isAnnotationPresent(WriteMethod.class))
+            if (method.isAnnotationPresent(WriteMethod.class)) {
                 write.add((o, dataOutput) -> invokeMethod(method, o, dataOutput));
-            else
-                write.addAll(write1);
+                writeMethod = true;
+            }
         }
+        if (!readMethod) read.addAll(read1);
+        if (!writeMethod) write.addAll(write1);
     }
 
     protected boolean inspectField(Field field) {
-        return !Modifier.isTransient(field.getModifiers()) &&
+        return !Modifier.isStatic(field.getModifiers()) &&
+                !Modifier.isTransient(field.getModifiers()) &&
                 !field.isSynthetic();
     }
 
@@ -129,13 +196,17 @@ public class IOFactory<C extends Context> {
             write1.add(io::writeObject);
         } else {
             io(field.getType(),
-                    object -> fieldGet(field, object), (obj, val) -> fieldSet(field, obj, val),
+                    object -> fieldGet(field, object), (obj, val) -> fieldSet(field, obj, val.get()),
                     field::getAnnotation,
                     read1, write1);
         }
     }
 
-    protected <T> void io(Class type, IOFunction<T, Object> getter, IOBiConsumer<T, IOSupplier> setter, Function<Class<? extends Annotation>, Annotation> getAnnotation, List<IOBiConsumer<T, ObjectInput<C>>> read, List<IOBiConsumer<T, ObjectOutput<C>>> write) {
+    protected <T> void io(Class type,
+                          IOFunction<T, Object> getter, IOBiConsumer<T, IOSupplier> setter,
+                          Function<Class<? extends Annotation>, Annotation> getAnnotation,
+                          List<IOBiConsumer<T, ObjectInput<C>>> read,
+                          List<IOBiConsumer<T, ObjectOutput<C>>> write) {
         if (type == Byte.TYPE || type == Byte.class) {
             read.add((object, dataInput) -> setter.accept(object, () -> (byte) dataInput.readUnsignedByte()));
             write.add((object, dataOutput) -> dataOutput.writeByte(((Byte) getter.apply(object))));
@@ -205,7 +276,7 @@ public class IOFactory<C extends Context> {
             IO io = forClass(type);
             read.add((object, dataInput) -> {
                 Object obj = io.instantiate(dataInput);
-                io.readObject(obj, dataInput);
+                forClass(obj.getClass()).readObject(obj, dataInput);
                 setter.accept(object, () -> obj);
             });
             write.add((object, dataOutput) -> io.writeObject(getter.apply(object), dataOutput));
