@@ -50,7 +50,6 @@ public class IOFactory<C extends Context> {
         if (!cache.containsKey(clazz)) {
             createForClass(clazz);
         }
-        log.fine(clazz + "->" + cache.get(clazz));
         return cache.get(clazz);
     }
 
@@ -77,31 +76,33 @@ public class IOFactory<C extends Context> {
             public Object instantiate(ObjectInput<C> input) throws IOException {
                 if (instantiator == null) {
                     instantiator = createInstantiator(clazz);
-                    log.fine("CreateInstantiator for " + clazz);
+                    log.fine("Create instantiator for " + clazz);
                 }
                 Object obj = instantiator.apply(input);
-                log.fine(this + ".instantiate " + obj);
+                log.fine(this + ".instantiate->" + obj);
                 return obj;
             }
 
             @Override
             public <S> void readObject(S obj, ObjectInput<C> input) throws IOException {
+                if (obj == null)
+                    return;
                 if (reader == null) {
                     reader = createReader(clazz, read);
-                    log.fine("CreateReader for " + clazz);
+                    log.fine("Create reader for " + clazz);
                 }
                 reader.accept(obj, input);
-                log.fine(this + ".read " + obj);
+                log.fine(this + ".read->" + obj);
             }
 
             @Override
             public <S> void writeObject(S obj, ObjectOutput<C> output) throws IOException {
                 if (writer == null) {
                     writer = createWriter(clazz, write);
-                    log.fine("CreateWriter for " + clazz);
+                    log.fine("Create writer for " + clazz);
                 }
                 writer.accept(obj, output);
-                log.fine(this + ".write " + obj);
+                log.fine(this + ".write->" + obj);
             }
 
             @Override
@@ -115,7 +116,7 @@ public class IOFactory<C extends Context> {
         return input -> {
             try {
                 Object obj = clazz.newInstance();
-                log.fine("IO[" + clazz + "].newInstance " + obj);
+                log.fine("IO[" + clazz + "].newInstance->" + obj);
                 return obj;
             } catch (InstantiationException e) {
                 throw new RuntimeException(e);
@@ -259,9 +260,12 @@ public class IOFactory<C extends Context> {
             read.add((object, dataInput) -> {
                 Object array = Array.newInstance(componentType, lenReader.apply(dataInput));
                 for (int i = 0; i < Array.getLength(array); i++) {
-                    Object obj = io.instantiate(dataInput);
-                    io.readObject(obj, dataInput);
-                    Array.set(array, i, obj);
+                    int ind = i;
+                    List<IOBiConsumer<Object, ObjectInput<C>>> arrayRead = new ArrayList<>();
+                    List<IOBiConsumer<Object, ObjectOutput<C>>> arrayWrite = new ArrayList<>();
+                    io(componentType, arr -> Array.get(arr, ind), (arr, val) -> Array.set(arr, ind, val.get()), getAnnotation, arrayRead, arrayWrite);
+                    for (IOBiConsumer<Object, ObjectInput<C>> ra : arrayRead)
+                        ra.accept(array, dataInput);
                 }
                 setter.accept(object, () -> array);
             });
@@ -269,7 +273,12 @@ public class IOFactory<C extends Context> {
                 Object array = getter.apply(object);
                 dataOutput.writeCompactInt(Array.getLength(array));
                 for (int i = 0; i < Array.getLength(array); i++) {
-                    io.writeObject(Array.get(array, i), dataOutput);
+                    int ind = i;
+                    List<IOBiConsumer<Object, ObjectInput<C>>> arrayRead = new ArrayList<>();
+                    List<IOBiConsumer<Object, ObjectOutput<C>>> arrayWrite = new ArrayList<>();
+                    io(componentType, arr -> Array.get(arr, ind), (arr, val) -> Array.set(arr, ind, val.get()), getAnnotation, arrayRead, arrayWrite);
+                    for (IOBiConsumer<Object, ObjectOutput<C>> wa : arrayWrite)
+                        wa.accept(array, dataOutput);
                 }
             });
         } else {

@@ -34,8 +34,10 @@ public interface ObjectInput<T extends Context> extends DataInput {
 
         IOFactory.IO io = getIOFactory().forClass(clazz);
         Object obj = io.instantiate(this);
-        io = getIOFactory().forClass(obj.getClass());
-        io.readObject(obj, this);
+        if (obj != null) {
+            io = getIOFactory().forClass(obj.getClass());
+            io.readObject(obj, this);
+        }
         return obj;
     }
 }
