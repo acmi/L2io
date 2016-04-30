@@ -2,3 +2,35 @@ group 'acmi.l2.clientmod'
 version '2.0-BETA'
 
 apply plugin: 'java'
+apply plugin: 'maven'
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives sourcesJar
+}
+
+configure(install.repositories.mavenInstaller) {
+    pom.project {
+        name = 'L2io'
+        description = 'Lineage 2 client files I/O library.'
+        url = 'https://github.com/acmi/L2io'
+        licenses {
+            license {
+                name 'The MIT License'
+                url 'https://opensource.org/licenses/MIT'
+                distribution 'repo'
+            }
+        }
+        developers {
+            developer {
+                id = 'acmi'
+                name = 'Aleksei Sazonov'
+                email = 'acmi831@gmail.com'
+            }
+        }
+    }
+}
