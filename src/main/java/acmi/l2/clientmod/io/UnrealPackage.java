@@ -827,6 +827,8 @@ public class UnrealPackage implements AutoCloseable {
 
         public abstract String getFullClassName();
 
+        public abstract int getObjectReference();
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -866,6 +868,7 @@ public class UnrealPackage implements AutoCloseable {
             this.offset = offset;
         }
 
+        @Override
         public int getObjectReference() {
             return getIndex() + 1;
         }
@@ -995,6 +998,7 @@ public class UnrealPackage implements AutoCloseable {
             this.className = className;
         }
 
+        @Override
         public int getObjectReference() {
             return -(getIndex() + 1);
         }
