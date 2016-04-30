@@ -22,7 +22,7 @@
 package acmi.l2.clientmod.io;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -31,20 +31,12 @@ import java.util.Arrays;
 public class RandomAccessMemory implements RandomAccess {
     private final String name;
     private final Charset charset;
-    private IOFactory ioFactory;
-    private Context context;
     private ByteBuffer buffer;
 
-    public <T extends Context> RandomAccessMemory(String name, byte[] data, Charset charset, IOFactory<T> ioFactory, T context) {
+    public RandomAccessMemory(String name, byte[] data, Charset charset) {
         this.name = name;
         this.buffer = ByteBuffer.wrap(data);
         this.charset = charset;
-        this.ioFactory = ioFactory;
-        this.context = context;
-    }
-
-    public RandomAccessMemory(String name, byte[] data, Charset charset) {
-        this(name, data, charset, null, null);
     }
 
     @Override
@@ -58,43 +50,25 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
-    public IOFactory getIOFactory() {
-        return ioFactory;
-    }
-
-    public void setIOFactory(IOFactory ioFactory) {
-        this.ioFactory = ioFactory;
-    }
-
-    @Override
-    public Context getContext() {
-        return context;
-    }
-
-    public void setContext(Context context) {
-        this.context = context;
-    }
-
-    @Override
-    public int getPosition() throws IOException {
+    public int getPosition() throws UncheckedIOException {
         return buffer.position();
     }
 
     @Override
-    public void setPosition(int position) throws IOException {
+    public void setPosition(int position) throws UncheckedIOException {
         try {
             buffer.position(position);
         } catch (IllegalArgumentException e) {
-            throw new IOException(e);
+            throw new UncheckedIOException(new IOException(e));
         }
     }
 
     @Override
-    public int read() throws IOException {
+    public int read() throws UncheckedIOException {
         try {
             return buffer.get() & 0xff;
         } catch (BufferUnderflowException e) {
-            throw new IOException(e);
+            throw new UncheckedIOException(new IOException(e));
         }
     }
 
@@ -137,7 +111,7 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
-    public void trimToPosition() throws IOException {
+    public void trimToPosition() {
         buffer.limit(buffer.position());
     }
 
@@ -146,11 +120,11 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
-    public RandomAccess openNewSession(boolean readOnly) throws IOException {
+    public RandomAccess openNewSession(boolean readOnly) {
         return this;
     }
 
-    public void writeTo(OutputStream output) throws IOException {
+    public void writeTo(DataOutput output) throws UncheckedIOException {
         output.write(buffer.array(), 0, buffer.limit());
     }
 }

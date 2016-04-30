@@ -21,18 +21,24 @@
  */
 package acmi.l2.clientmod.io;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static acmi.l2.clientmod.io.ByteUtil.*;
+import static acmi.l2.clientmod.io.UnrealPackage.ObjectFlag.*;
+import static acmi.l2.clientmod.util.CollectionsMethods.indexIf;
 
 @SuppressWarnings("unused")
-public class UnrealPackage implements Closeable {
+public class UnrealPackage implements AutoCloseable {
     private static Charset defaultCharset = Charset.forName("EUC-KR");
 
     public static Charset getDefaultCharset() {
@@ -71,25 +77,27 @@ public class UnrealPackage implements Closeable {
 
     private List<Generation> generations;
 
-    public <T extends Context> UnrealPackage(String path, boolean readOnly, IOFactory<T> ioFactory, T context) throws IOException {
-        this(new RandomAccessFile(path, readOnly, defaultCharset, ioFactory, context));
+    private int headerEndOffset;
+
+    public UnrealPackage(String path, boolean readOnly) throws UncheckedIOException {
+        this(new RandomAccessFile(path, readOnly, defaultCharset));
     }
 
-    public <T extends Context> UnrealPackage(File file, boolean readOnly, IOFactory<T> ioFactory, T context) throws IOException {
-        this(new RandomAccessFile(file, readOnly, defaultCharset, ioFactory, context));
+    public UnrealPackage(File file, boolean readOnly) throws UncheckedIOException {
+        this(new RandomAccessFile(file, readOnly, defaultCharset));
     }
 
-    public <T extends Context> UnrealPackage(String name, byte[] data, IOFactory<T> ioFactory, T context) throws IOException {
-        this(new RandomAccessMemory(name, data, defaultCharset, ioFactory, context));
+    public UnrealPackage(String name, byte[] data) throws UncheckedIOException {
+        this(new RandomAccessMemory(name, data, defaultCharset));
     }
 
-    public UnrealPackage(RandomAccess file) throws IOException {
+    public UnrealPackage(RandomAccess file) throws UncheckedIOException {
         this.file = Objects.requireNonNull(file);
 
         file.setPosition(0);
 
         if (file.readInt() != UNREAL_PACKAGE_MAGIC)
-            throw new IOException("Not a L2 package file.");
+            throw new UncheckedIOException(new IOException("Not a L2 package file."));
 
         version = file.readUnsignedShort();
         licensee = file.readUnsignedShort();
@@ -110,6 +118,30 @@ public class UnrealPackage implements Closeable {
         for (int i = 0; i < count; i++)
             tmp.add(new Generation(this, i, file.readInt(), file.readInt()));
         generations = Collections.unmodifiableList(tmp);
+
+        headerEndOffset = file.getPosition();
+    }
+
+    public static UnrealPackage create(RandomAccess randomAccess, int version, int license) throws UncheckedIOException {
+        byte[] data = new byte[56];
+
+        ByteBuffer upData = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+        upData.putInt(UNREAL_PACKAGE_MAGIC);
+        upData.putShort((short) version);
+        upData.putShort((short) license);
+        upData.putInt(1);
+
+        upData.position(GUID_OFFSET);
+        upData.put(ByteUtil.uuidToBytes(UUID.randomUUID()));
+
+        randomAccess.setPosition(0);
+        randomAccess.write(data);
+        randomAccess.trimToPosition();
+
+        UnrealPackage up = new UnrealPackage(randomAccess);
+        up.addNameEntries(Collections.singletonMap("None", 0x04070410));
+
+        return up;
     }
 
     public RandomAccess getFile() {
@@ -124,7 +156,7 @@ public class UnrealPackage implements Closeable {
         return version;
     }
 
-    public void setVersion(int version) throws IOException {
+    public void setVersion(int version) throws UncheckedIOException {
         file.setPosition(VERSION_OFFSET);
         file.writeShort(version);
 
@@ -135,7 +167,7 @@ public class UnrealPackage implements Closeable {
         return licensee;
     }
 
-    public void setLicensee(int licensee) throws IOException {
+    public void setLicensee(int licensee) throws UncheckedIOException {
         file.setPosition(LICENSEE_OFFSET);
         file.writeShort(licensee);
 
@@ -146,7 +178,7 @@ public class UnrealPackage implements Closeable {
         return flags;
     }
 
-    public void setFlags(int flags) throws IOException {
+    public void setFlags(int flags) throws UncheckedIOException {
         file.setPosition(PACKAGE_FLAGS_OFFSET);
         file.writeInt(flags);
 
@@ -157,7 +189,7 @@ public class UnrealPackage implements Closeable {
         return uuid;
     }
 
-    public void setGUID(UUID guid) throws IOException {
+    public void setGUID(UUID guid) throws UncheckedIOException {
         file.setPosition(GUID_OFFSET);
         file.write(uuidToBytes(uuid));
 
@@ -168,7 +200,7 @@ public class UnrealPackage implements Closeable {
         return names;
     }
 
-    private void readNameTable() throws IOException {
+    private void readNameTable() throws UncheckedIOException {
         file.setPosition(NAME_COUNT_OFFSET);
         int count = file.readInt();
         file.setPosition(getNameTableOffset());
@@ -184,7 +216,7 @@ public class UnrealPackage implements Closeable {
         return exports;
     }
 
-    private void readExportTable() throws IOException {
+    private void readExportTable() throws UncheckedIOException {
         file.setPosition(EXPORT_COUNT_OFFSET);
         int count = file.readInt();
         file.setPosition(getExportTableOffset());
@@ -207,7 +239,7 @@ public class UnrealPackage implements Closeable {
         return imports;
     }
 
-    private void readImportTable() throws IOException {
+    private void readImportTable() throws UncheckedIOException {
         file.setPosition(IMPORT_COUNT_OFFSET);
         int count = file.readInt();
         file.setPosition(getImportTableOffset());
@@ -227,7 +259,7 @@ public class UnrealPackage implements Closeable {
         return uuid;
     }
 
-    public void setUUID(UUID uuid) throws IOException {
+    public void setUUID(UUID uuid) throws UncheckedIOException {
         file.setPosition(GUID_OFFSET);
         file.write(uuidToBytes(uuid));
 
@@ -279,35 +311,27 @@ public class UnrealPackage implements Closeable {
     }
 
     public int importReference(String name, String clazz) {
-        try {
-            return getImportTable().stream()
-                    .filter(entry -> entry.getObjectFullName().equalsIgnoreCase(name))
-                    .findAny()
-                    .get()
-                    .getObjectReference();
-        } catch (NoSuchElementException ignore) {
-            return 0;
-        }
+        return getImportTable().stream()
+                .filter(entry -> entry.getObjectFullName().equalsIgnoreCase(name))
+                .findAny()
+                .map(ImportEntry::getObjectReference)
+                .orElse(0);
     }
 
     public int exportReference(String name, String clazz) {
-        try {
-            return getExportTable().stream()
-                    .filter(entry -> entry.getObjectInnerFullName().equalsIgnoreCase(name))
-                    .findAny()
-                    .get()
-                    .getObjectReference();
-        } catch (NoSuchElementException ignore) {
-            return 0;
-        }
+        return getExportTable().stream()
+                .filter(entry -> entry.getObjectInnerFullName().equalsIgnoreCase(name))
+                .findAny()
+                .map(ExportEntry::getObjectReference)
+                .orElse(0);
     }
 
-    public void updateNameTable(Consumer<List<NameEntry>> transformation) throws IOException {
-        List<NameEntry> nameTable = new ArrayList<>(getNameTable());
+    public void updateNameTable(Consumer<List<UnrealPackage.NameEntry>> transformation) throws UncheckedIOException {
+        List<UnrealPackage.NameEntry> nameTable = new ArrayList<>(getNameTable());
 
         transformation.accept(nameTable);
 
-        int newNameTablePos = getDataEndOffset();
+        int newNameTablePos = getDataEndOffset().orElse(headerEndOffset);
         file.setPosition(newNameTablePos);
         writeNameTable(nameTable);
         int newImportTablePos = file.getPosition();
@@ -331,8 +355,8 @@ public class UnrealPackage implements Closeable {
         readNameTable();
     }
 
-    public void updateImportTable(Consumer<List<ImportEntry>> transformation) throws IOException {
-        List<ImportEntry> importTable = new ArrayList<>(getImportTable());
+    public void updateImportTable(Consumer<List<UnrealPackage.ImportEntry>> transformation) throws UncheckedIOException {
+        List<UnrealPackage.ImportEntry> importTable = new ArrayList<>(getImportTable());
 
         transformation.accept(importTable);
 
@@ -350,118 +374,15 @@ public class UnrealPackage implements Closeable {
         readImportTable();
     }
 
-    public void addNameEntries(Map<String, Integer> names) throws IOException {
-        updateNameTable(nameTable -> names.forEach((k, v) -> {
-            NameEntry entry = new NameEntry(null, 0, k, v);
-            if (!nameTable.contains(entry))
-                nameTable.add(entry);
-        }));
-    }
+    /**
+     * Note: transformation must set position to the end of data
+     */
+    public void updateExportTable(Consumer<List<ExportEntry>> transformation) throws UncheckedIOException {
+        file.setPosition(getDataEndOffset().orElse(headerEndOffset));
 
-    public void updateNameEntry(int index, String newName, int newFlags) throws IOException {
-        updateNameTable(nameTable -> {
-            nameTable.remove(index);
-            nameTable.add(index, new NameEntry(this, index, newName, newFlags));
-        });
-    }
+        List<UnrealPackage.ExportEntry> exportTable = new ArrayList<>(getExportTable());
 
-    public void addImportEntries(Map<String, String> imports, boolean force) throws IOException {
-        Map<String, Integer> namesToAdd = new HashMap<>();
-        imports.forEach((k, v) -> {
-            String[] namePath = k.split("\\.");
-            String[] classPath = v.split("\\.");
-
-            Arrays.stream(namePath)
-                    .filter(s -> nameReference(s) == -1)
-                    .forEach(s -> namesToAdd.put(s, PACKAGE_FLAGS));
-            Arrays.stream(classPath)
-                    .filter(s -> nameReference(s) == -1)
-                    .forEach(s -> namesToAdd.put(s, PACKAGE_FLAGS));
-        });
-        addNameEntries(namesToAdd);
-
-        updateImportTable(importTable -> {
-            for (Map.Entry<String, String> entry : imports.entrySet()) {
-                String[] namePath = entry.getKey().split("\\.");
-                String[] classPath = entry.getValue().split("\\.");
-
-                int pckg = 0;
-                ImportEntry importEntry;
-                for (int i = 0; i < namePath.length - 1; i++) {
-                    importEntry = new ImportEntry(this, 0,
-                            nameReference("Core"),
-                            nameReference("Package"),
-                            pckg,
-                            nameReference(namePath[i]));
-                    if ((pckg = importTable.indexOf(importEntry)) == -1) {
-                        importTable.add(importEntry);
-                        pckg = importTable.size() - 1;
-                    }
-                    pckg = -(pckg + 1);
-                }
-
-                importEntry = new ImportEntry(this, 0,
-                        nameReference(classPath[0]),
-                        nameReference(classPath[1]),
-                        pckg,
-                        nameReference(namePath[namePath.length - 1]));
-                if (force || importTable.indexOf(importEntry) == -1)
-                    importTable.add(importEntry);
-            }
-        });
-    }
-
-    public void addExportEntry(String objectName, String objectClass, String objectSuperClass, byte[] data, int flags) throws IOException {
-        Map<String, String> classes = new HashMap<>();
-        if (objectClass != null && objectReference(objectClass, "Core.Class") == 0)
-            classes.put(objectClass, "Core.Class");
-        if (objectSuperClass != null && objectReference(objectSuperClass, "Core.Class") == 0)
-            classes.put(objectClass, "Core.Class");
-        if (!classes.isEmpty())
-            addImportEntries(classes, false);
-
-        Map<String, Integer> namesToAdd = new HashMap<>();
-        String[] namePath = objectName.split("\\.");
-        Arrays.stream(namePath)
-                .filter(s -> nameReference(s) == -1)
-                .forEach(s -> namesToAdd.put(s, PACKAGE_FLAGS));
-        addNameEntries(namesToAdd);
-
-        file.setPosition(getDataEndOffset());
-        List<ExportEntry> exportTable = new ArrayList<>(getExportTable());
-        int pckgInd = importReference("Core.Package", "Core.Class");
-        byte[] pckgData = compactIntToByteArray(nameReference("None"));
-
-        int pckg = 0;
-        ExportEntry exportEntry;
-        for (int i = 0; i < namePath.length - 1; i++) {
-            exportEntry = new ExportEntry(this, 0,
-                    pckgInd,
-                    0,
-                    pckg,
-                    nameReference(namePath[i]),
-                    PACKAGE_FLAGS,
-                    pckgData.length, file.getPosition());
-            if ((pckg = exportTable.indexOf(exportEntry)) == -1) {
-                exportTable.add(exportEntry);
-                pckg = exportTable.size() - 1;
-                file.write(pckgData);
-            }
-            pckg++;
-        }
-
-        exportEntry = new ExportEntry(this,
-                0,
-                objectReference(objectClass, "Core.Class"),
-                objectReference(objectSuperClass, "Core.Class"),
-                pckg,
-                nameReference(namePath[namePath.length - 1]),
-                flags,
-                data.length, file.getPosition());
-        if (exportTable.indexOf(exportEntry) == -1) {
-            exportTable.add(exportEntry);
-            file.write(data);
-        }
+        transformation.accept(exportTable);
 
         int nameTablePosition = file.getPosition();
         writeNameTable(getNameTable());
@@ -479,168 +400,33 @@ public class UnrealPackage implements Closeable {
         file.setPosition(IMPORT_OFFSET_OFFSET);
         file.writeInt(importTablePosition);
 
-        readNameTable();
-        readImportTable();
         readExportTable();
     }
 
-//    public void renameExport(String nameSrc, String nameDst) throws IOException {
-//        if (objectReference(nameSrc) <= 0){
-//            log.log(Level.WARNING, "ExportEntry not found: "+nameSrc);
-//            return;
-//        }
-//        if (objectReference(nameDst) != 0){
-//            log.log(Level.WARNING, "Entry already exist: "+nameDst);
-//            return;
-//        }
-//
-//        List<String> namesToAdd = new ArrayList<>();
-//        String[] namePath = nameDst.split("\\.");
-//        if (namePath.length > 1 && objectReference("Core.Package") == 0)
-//            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"));
-//        for (String s : namePath)
-//            if (nameReference(s) == -1)
-//                namesToAdd.add(s);
-//        String[] newNames = namesToAdd.toArray(new String[namesToAdd.size()]);
-//        addNameEntries(newNames);
-//
-//        List<NameEntry> nameTable = getNameTable();
-//        List<ImportEntry> importTable = getImportTable();
-//
-//        file.setPosition(getDataEndOffset());
-//        List<ExportEntry> exportTable = new ArrayList<>(getExportTable());
-//        int pckgInd = objectReference("Core.Package");
-//        byte[] pckgData = L2RandomAccessFile.compactIntToByteArray(getNameTable().indexOf(new NameEntry("None")));
-//        int pckg = 0;
-//        ExportEntry exportEntry;
-//        for (int i = 0; i < namePath.length - 1; i++) {
-//            exportEntry = new ExportEntry(
-//                    pckgInd,
-//                    0,
-//                    pckg,
-//                    nameReference(namePath[i]),
-//                    RF_Public | RF_LoadForServer | RF_LoadForEdit,
-//                    pckgData.length, file.getPosition());
-//            if ((pckg = exportTable.indexOf(exportEntry)) == -1) {
-//                exportTable.add(exportEntry);
-//                pckg = exportTable.size() - 1;
-//                file.write(pckgData);
-//                log.log(Level.INFO, "ExportEntry added: "+exportEntry);
-//            }
-//            pckg++;
-//        }
-//        for (ExportEntry entry : exportTable) {
-//            if (entry.getAbsoluteName().equalsIgnoreCase(nameSrc)) {
-//                log.log(Level.INFO, "ExportEntry renamed: "+entry);
-//                entry.objectPackage = pckg;
-//                entry.objectName = nameReference(namePath[namePath.length - 1]);
-//                //log.log(Level.INFO, "New ExportEntry name: "+entry);
-//                break;
-//            }
-//        }
-//
-//        int nameTablePosition = file.getPosition();
-//        writeNameTable(nameTable);
-//        int importTablePosition = file.getPosition();
-//        writeImportTable(importTable);
-//        int exportTablePosition = file.getPosition();
-//        writeExportTable(exportTable);
-//
-//        setNameTableOffset(nameTablePosition);
-//        setExportTableOffset(exportTablePosition);
-//        setExportTableCount(exportTable.size());
-//        setImportTableOffset(importTablePosition);
-//
-//        names = null;
-//        imports = null;
-//        exports = null;
-//    }
+    private byte[] bufferArray = new byte[0x10000];
 
-//    public void removeExport(String className) throws IOException{
-//        if (objectReference("Core.Package") == 0)
-//            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"), false);
-//
-//        int pckgInd = objectReference("Core.Package");
-//        byte[] pckgData = compactIntToByteArray(nameReference("None"));
-//
-//        List<ExportEntry> exportTable = getExportTable();
-//
-//        for (ExportEntry entry : exportTable){
-//            if (entry.getObjectClass().getObjectFullName().equalsIgnoreCase(className)){
-//                entry.objectClass = pckgInd;
-//                entry.objectSuperClass = 0;
-//                entry.objectFlags =  ObjectFlag.getFlags(ObjectFlag.Public, ObjectFlag.LoadForServer, ObjectFlag.LoadForEdit);
-//                entry.setObjectRawData(pckgData, false);
-//            }
-//        }
-//
-//        file.setPosition(getExportTableOffset());
-//        writeExportTable(exportTable);
-//        exports = null;
-//    }
-
-    public void renameImport(int index, String importDst) throws IOException {
-        addImportEntries(
-                Collections.singletonMap(importDst, getImportTable().get(index).getFullClassName()),
-                true
-        );
-
-        updateImportTable(importTable -> importTable.set(index, importTable.remove(importTable.size() - 1)));
-    }
-
-    public void changeImportClass(int index, String importDst) throws IOException {
-        String[] clazz = importDst.split("\\.");
-        if (clazz.length != 2)
-            throw new IllegalArgumentException("Format: Package.Class");
-
-        addNameEntries(Arrays.stream(clazz)
-                .filter(s -> nameReference(s) == -1)
-                .collect(Collectors.toMap(v -> v, v -> PACKAGE_FLAGS)));
-
-        updateImportTable(importTable -> {
-            ImportEntry entry = importTable.get(index);
-            entry.classPackage = nameReference(clazz[0]);
-            entry.className = nameReference(clazz[1]);
-        });
-    }
-
-    private OutputStream fileOutputStream = new OutputStream() {
-        @Override
-        public void write(int b) throws IOException {
-            file.write(b);
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            file.write(b, off, len);
-        }
-    };
-
-    private void writeNameTable(List<NameEntry> nameTable) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutput buffer = new DataOutputStream(baos, file.getCharset());
+    private void writeNameTable(List<NameEntry> nameTable) throws UncheckedIOException {
+        RandomAccessMemory buffer = new RandomAccessMemory(null, bufferArray, file.getCharset());
         for (NameEntry entry : nameTable) {
             buffer.writeLine(entry.getName());
             buffer.writeInt(entry.getFlags());
         }
-        baos.writeTo(fileOutputStream);
+        buffer.writeTo(file);
     }
 
-    private void writeImportTable(List<ImportEntry> importTable) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutput buffer = new DataOutputStream(baos, file.getCharset());
+    private void writeImportTable(List<ImportEntry> importTable) throws UncheckedIOException {
+        RandomAccessMemory buffer = new RandomAccessMemory(null, bufferArray, file.getCharset());
         for (ImportEntry entry : importTable) {
             buffer.writeCompactInt(entry.classPackage);
             buffer.writeCompactInt(entry.className);
             buffer.writeInt(entry.objectPackage);
             buffer.writeCompactInt(entry.objectName);
         }
-        baos.writeTo(fileOutputStream);
+        buffer.writeTo(file);
     }
 
-    private void writeExportTable(List<ExportEntry> exportTable) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutput buffer = new DataOutputStream(baos, file.getCharset());
+    private void writeExportTable(List<ExportEntry> exportTable) throws UncheckedIOException {
+        RandomAccessMemory buffer = new RandomAccessMemory(null, bufferArray, file.getCharset());
         for (ExportEntry entry : exportTable) {
             buffer.writeCompactInt(entry.objectClass);
             buffer.writeCompactInt(entry.objectSuperClass);
@@ -650,43 +436,267 @@ public class UnrealPackage implements Closeable {
             buffer.writeCompactInt(entry.size);
             buffer.writeCompactInt(entry.offset);
         }
-        baos.writeTo(fileOutputStream);
+        buffer.writeTo(file);
     }
 
-    public int getNameTableOffset() throws IOException {
+    public int getNameTableOffset() throws UncheckedIOException {
         file.setPosition(NAME_OFFSET_OFFSET);
         return file.readInt();
     }
 
-    public int getExportTableOffset() throws IOException {
+    public int getExportTableOffset() throws UncheckedIOException {
         file.setPosition(EXPORT_OFFSET_OFFSET);
         return file.readInt();
     }
 
-    public int getImportTableOffset() throws IOException {
+    public int getImportTableOffset() throws UncheckedIOException {
         file.setPosition(IMPORT_OFFSET_OFFSET);
         return file.readInt();
     }
 
-    public int getDataStartOffset() {
+    public OptionalInt getDataStartOffset() {
         return getExportTable().stream()
                 .filter(entry -> entry.getSize() > 0)
                 .mapToInt(ExportEntry::getOffset)
-                .min()
-                .orElseThrow(() -> new IllegalStateException("Data block is empty"));
+                .min();
     }
 
-    public int getDataEndOffset() {
+    public OptionalInt getDataEndOffset() {
         return getExportTable().stream()
                 .filter(entry -> entry.getSize() > 0)
                 .mapToInt(entry -> entry.getOffset() + entry.getSize())
-                .max()
-                .orElseThrow(() -> new IllegalStateException("Data block is empty"));
+                .max();
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() throws UncheckedIOException {
         file.close();
+    }
+
+    private static final int DEFAULT_NAME_FLAGS = UnrealPackage.ObjectFlag.getFlags(
+            TagExp,
+            LoadForClient,
+            LoadForServer,
+            LoadForEdit);
+    private static final int DEFAULT_OBJECT_FLAGS = UnrealPackage.ObjectFlag.getFlags(
+            Public,
+            LoadForClient,
+            LoadForServer,
+            LoadForEdit);
+
+    public void addNameEntries(Map<String, Integer> names) throws UncheckedIOException {
+        updateNameTable(nameTable -> names.forEach((k, v) -> {
+            UnrealPackage.NameEntry entry = new UnrealPackage.NameEntry(null, 0, k, v);
+            if (!nameTable.contains(entry))
+                nameTable.add(entry);
+        }));
+    }
+
+    public void updateNameEntry(int index, String newName, int newFlags) throws UncheckedIOException {
+        updateNameTable(nameTable -> {
+            nameTable.remove(index);
+            nameTable.add(index, new UnrealPackage.NameEntry(this, index, newName, newFlags));
+        });
+    }
+
+    public void addImportEntries(Map<String, String> imports, boolean force) throws UncheckedIOException {
+        Map<String, Integer> namesToAdd = new HashMap<>();
+        if (nameReference("Core") == -1)
+            namesToAdd.put("Core", DEFAULT_NAME_FLAGS | Native.getMask());
+        if (nameReference("Package") == -1)
+            namesToAdd.put("Package", DEFAULT_NAME_FLAGS | HighlightedName.getMask() | Native.getMask());
+        imports.forEach((k, v) -> {
+            String[] namePath = k.split("\\.");
+            String[] classPath = v.split("\\.");
+
+            Arrays.stream(namePath)
+                    .filter(s -> nameReference(s) == -1)
+                    .forEach(s -> namesToAdd.put(s, DEFAULT_NAME_FLAGS));
+            Arrays.stream(classPath)
+                    .filter(s -> nameReference(s) == -1)
+                    .forEach(s -> namesToAdd.put(s, DEFAULT_NAME_FLAGS));
+        });
+        addNameEntries(namesToAdd);
+
+        updateImportTable(importTable -> {
+            for (Map.Entry<String, String> entry : imports.entrySet()) {
+                String[] namePath = entry.getKey().split("\\.");
+                String[] classPath = entry.getValue().split("\\.");
+
+                int pckg = 0;
+                UnrealPackage.ImportEntry importEntry;
+                for (int i = 0; i < namePath.length - 1; i++) {
+                    importEntry = new UnrealPackage.ImportEntry(this, 0,
+                            nameReference("Core"),
+                            nameReference("Package"),
+                            pckg,
+                            nameReference(namePath[i]));
+                    if ((pckg = importTable.indexOf(importEntry)) == -1) {
+                        importTable.add(importEntry);
+                        pckg = importTable.size() - 1;
+                    }
+                    pckg = -(pckg + 1);
+                }
+
+                importEntry = new UnrealPackage.ImportEntry(this, 0,
+                        nameReference(classPath[0]),
+                        nameReference(classPath[1]),
+                        pckg,
+                        nameReference(namePath[namePath.length - 1]));
+                UnrealPackage.ImportEntry toFind = importEntry;
+                if (force || indexIf(importTable, ie -> toFind.objectPackage == ie.objectPackage &&
+                        toFind.objectName == ie.objectName &&
+                        toFind.classPackage == ie.classPackage &&
+                        toFind.className == ie.className) == -1)
+                    importTable.add(importEntry);
+            }
+        });
+    }
+
+    public void renameImport(int index, String importDst) throws UncheckedIOException {
+        addImportEntries(
+                Collections.singletonMap(importDst, getImportTable().get(index).getFullClassName()),
+                true
+        );
+
+        updateImportTable(importTable -> importTable.set(index, importTable.remove(importTable.size() - 1)));
+    }
+
+    public void changeImportClass(int index, String importDst) throws UncheckedIOException {
+        String[] clazz = importDst.split("\\.");
+        if (clazz.length != 2)
+            throw new IllegalArgumentException("Format: Package.Class");
+
+        addNameEntries(Arrays.stream(clazz)
+                .filter(s -> nameReference(s) == -1)
+                .collect(Collectors.toMap(v -> v, v -> DEFAULT_NAME_FLAGS)));
+
+        updateImportTable(importTable -> {
+            UnrealPackage.ImportEntry entry = importTable.get(index);
+            entry.classPackage = nameReference(clazz[0]);
+            entry.className = nameReference(clazz[1]);
+        });
+    }
+
+    public void addExportEntry(String objectName, String objectClass, String objectSuperClass, byte[] data, int flags) throws UncheckedIOException {
+        Map<String, String> classes = new HashMap<>();
+        if (objectClass != null && objectReference(objectClass, "Core.Class") == 0)
+            classes.put(objectClass, "Core.Class");
+        if (objectSuperClass != null && objectReference(objectSuperClass, "Core.Class") == 0)
+            classes.put(objectClass, "Core.Class");
+        if (!classes.isEmpty())
+            addImportEntries(classes, false);
+
+        Map<String, Integer> namesToAdd = new HashMap<>();
+        String[] namePath = objectName.split("\\.");
+        Arrays.stream(namePath)
+                .filter(s -> nameReference(s) == -1)
+                .forEach(s -> namesToAdd.put(s, DEFAULT_NAME_FLAGS));
+        addNameEntries(namesToAdd);
+
+        updateExportTable(exportTable -> {
+            int pckgInd = importReference("Core.Package", "Core.Class");
+            byte[] pckgData = compactIntToByteArray(nameReference("None"));
+            int pckg = 0;
+            UnrealPackage.ExportEntry exportEntry;
+            for (int i = 0; i < namePath.length - 1; i++) {
+                exportEntry = new UnrealPackage.ExportEntry(this,
+                        0,
+                        pckgInd,
+                        0,
+                        pckg,
+                        nameReference(namePath[i]),
+                        DEFAULT_OBJECT_FLAGS,
+                        pckgData.length,
+                        file.getPosition());
+                if ((pckg = exportTable.indexOf(exportEntry)) == -1) {
+                    exportTable.add(exportEntry);
+                    pckg = exportTable.size() - 1;
+                    file.write(pckgData);
+                }
+                pckg++;
+            }
+
+            exportEntry = new UnrealPackage.ExportEntry(this,
+                    0,
+                    objectReference(objectClass, "Core.Class"),
+                    objectReference(objectSuperClass, "Core.Class"),
+                    pckg,
+                    nameReference(namePath[namePath.length - 1]),
+                    flags,
+                    data.length, file.getPosition());
+            UnrealPackage.ExportEntry toFind = exportEntry;
+            if (indexIf(exportTable, ee -> ee.objectPackage == toFind.objectPackage &&
+                    ee.objectName == toFind.objectName &&
+                    ee.objectClass == toFind.objectClass &&
+                    ee.objectSuperClass == toFind.objectSuperClass) == -1) {
+                exportTable.add(exportEntry);
+                file.write(data);
+            }
+        });
+    }
+
+    public void renameExport(int index, String nameDst) throws UncheckedIOException {
+        List<String> namesToAdd = new ArrayList<>();
+        String[] namePath = nameDst.split("\\.");
+        if (namePath.length > 1 && objectReference("Core.Package", "Core.Class") == 0)
+            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"), true);
+        for (String s : namePath)
+            if (nameReference(s) == -1)
+                namesToAdd.add(s);
+        addNameEntries(namesToAdd.stream().collect(Collectors.toMap(name -> name, name -> DEFAULT_NAME_FLAGS)));
+
+        updateExportTable(exportTable -> {
+            int pckgInd = objectReference("Core.Package", "Core.Class");
+            byte[] pckgData = ByteUtil.compactIntToByteArray(nameReference("None"));
+            int pckg = 0;
+            UnrealPackage.ExportEntry exportEntry;
+            for (int i = 0; i < namePath.length - 1; i++) {
+                exportEntry = new UnrealPackage.ExportEntry(this,
+                        0,
+                        pckgInd,
+                        0,
+                        pckg,
+                        nameReference(namePath[i]),
+                        Public.getMask() | LoadForServer.getMask() | LoadForEdit.getMask(),
+                        pckgData.length, file.getPosition());
+                if ((pckg = exportTable.indexOf(exportEntry)) == -1) {
+                    exportTable.add(exportEntry);
+                    pckg = exportTable.size() - 1;
+                    file.write(pckgData);
+                }
+                pckg++;
+            }
+            ExportEntry oldEntry = exportTable.remove(index);
+            exportTable.add(index, new ExportEntry(this,
+                    0,
+                    oldEntry.objectClass,
+                    oldEntry.objectSuperClass,
+                    pckg,
+                    nameReference(namePath[namePath.length - 1]),
+                    oldEntry.objectFlags,
+                    oldEntry.offset,
+                    oldEntry.size
+            ));
+        });
+    }
+
+    public void removeExport(int index) throws UncheckedIOException {
+        if (objectReference("Core.Package", "Core.Class") == 0)
+            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"), true);
+
+        int pckgInd = objectReference("Core.Package", "Core.Class");
+        byte[] pckgData = compactIntToByteArray(nameReference("None"));
+
+        updateExportTable(exportTable -> {
+            ExportEntry entry = exportTable.get(index);
+            entry.objectClass = pckgInd;
+            entry.objectSuperClass = 0;
+            entry.objectFlags = ObjectFlag.getFlags(Public, LoadForClient, LoadForServer, LoadForEdit);
+            entry.setObjectRawData(pckgData, false);
+
+            file.setPosition(getDataEndOffset().orElse(headerEndOffset));
+        });
     }
 
     private static abstract class PackageEntry {
@@ -738,7 +748,7 @@ public class UnrealPackage implements Closeable {
         private final String name;
         private int flags;
 
-        private NameEntry(UnrealPackage unrealPackage, int index, String name, int flags) {
+        public NameEntry(UnrealPackage unrealPackage, int index, String name, int flags) {
             super(unrealPackage, index);
             this.name = Objects.requireNonNull(name);
             this.flags = flags;
@@ -826,7 +836,6 @@ public class UnrealPackage implements Closeable {
 
             return getObjectFullName().equalsIgnoreCase(entry.getObjectFullName()) &&
                     getFullClassName().equalsIgnoreCase(entry.getFullClassName());
-
         }
 
         @Override
@@ -848,7 +857,7 @@ public class UnrealPackage implements Closeable {
 
         private Reference<String> fullName = new SoftReference<>(null);
 
-        private ExportEntry(UnrealPackage unrealPackage, int index, int objectClass, int objectSuperClass, int objectPackage, int objectName, int objectFlags, int size, int offset) {
+        public ExportEntry(UnrealPackage unrealPackage, int index, int objectClass, int objectSuperClass, int objectPackage, int objectName, int objectFlags, int size, int offset) {
             super(unrealPackage, index, objectPackage, objectName);
             this.objectClass = objectClass;
             this.objectSuperClass = objectSuperClass;
@@ -886,7 +895,7 @@ public class UnrealPackage implements Closeable {
             return offset;
         }
 
-        public byte[] getObjectRawData() throws IOException {
+        public byte[] getObjectRawData() throws UncheckedIOException {
             if (getSize() == 0)
                 return new byte[0];
 
@@ -896,7 +905,7 @@ public class UnrealPackage implements Closeable {
             return raw;
         }
 
-        public byte[] getObjectRawDataExternally() throws IOException {
+        public byte[] getObjectRawDataExternally() throws UncheckedIOException {
             if (getSize() == 0)
                 return new byte[0];
 
@@ -908,11 +917,11 @@ public class UnrealPackage implements Closeable {
             }
         }
 
-        public void setObjectRawData(byte[] data) throws IOException {
+        public void setObjectRawData(byte[] data) throws UncheckedIOException {
             setObjectRawData(data, true);
         }
 
-        public void setObjectRawData(byte[] data, boolean writeExportTable) throws IOException {
+        public void setObjectRawData(byte[] data, boolean writeExportTable) throws UncheckedIOException {
             if (data.length <= getSize()) {
                 getUnrealPackage().file.setPosition(getOffset());
                 getUnrealPackage().file.write(data);
@@ -929,7 +938,7 @@ public class UnrealPackage implements Closeable {
 //                getUnrealPackage().file.setPosition(getOffset());
 //                getUnrealPackage().file.write(new byte[getSize()]);
 
-                getUnrealPackage().file.setPosition(getUnrealPackage().getDataEndOffset());
+                getUnrealPackage().file.setPosition(getUnrealPackage().getDataEndOffset().orElse(getUnrealPackage().headerEndOffset));
                 offset = getUnrealPackage().file.getPosition();
                 size = data.length;
                 getUnrealPackage().file.write(data);
@@ -980,7 +989,7 @@ public class UnrealPackage implements Closeable {
 
         private Reference<String> fullClassName = new SoftReference<>(null);
 
-        private ImportEntry(UnrealPackage unrealPackage, int index, int classPackage, int className, int objectPackage, int objectName) {
+        public ImportEntry(UnrealPackage unrealPackage, int index, int classPackage, int className, int objectPackage, int objectName) {
             super(unrealPackage, index, objectPackage, objectName);
             this.classPackage = classPackage;
             this.className = className;
@@ -1169,12 +1178,6 @@ public class UnrealPackage implements Closeable {
             return v;
         }
     }
-
-    private static final int PACKAGE_FLAGS = ObjectFlag.getFlags(
-            ObjectFlag.Public,
-            ObjectFlag.LoadForClient,
-            ObjectFlag.LoadForServer,
-            ObjectFlag.LoadForEdit);
 
     public enum PackageFlag {
         /**

@@ -22,18 +22,23 @@
 package acmi.l2.clientmod.io;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
+import java.nio.ReadOnlyBufferException;
 import java.nio.charset.Charset;
 
 import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
 
 public interface DataOutput {
-    void write(int b) throws IOException;
+    void write(int b) throws UncheckedIOException;
 
-    default void write(byte[] b) throws IOException {
+    default void write(byte[] b) throws UncheckedIOException {
         write(b, 0, b.length);
     }
 
-    default void write(byte[] b, int off, int len) throws IOException {
+    default void write(byte[] b, int off, int len) throws UncheckedIOException {
         if ((off | len | (b.length - (len + off)) | (off + len)) < 0)
             throw new IndexOutOfBoundsException();
 
@@ -42,27 +47,27 @@ public interface DataOutput {
         }
     }
 
-    default void writeByte(int val) throws IOException {
+    default void writeByte(int val) throws UncheckedIOException {
         write(val);
     }
 
-    default void writeShort(int val) throws IOException {
+    default void writeShort(int val) throws UncheckedIOException {
         write((val) & 0xFF);
         write((val >>> 8) & 0xFF);
     }
 
-    default void writeInt(int val) throws IOException {
+    default void writeInt(int val) throws UncheckedIOException {
         write((val) & 0xFF);
         write((val >>> 8) & 0xFF);
         write((val >>> 16) & 0xFF);
         write((val >>> 24) & 0xFF);
     }
 
-    default void writeCompactInt(int val) throws IOException {
+    default void writeCompactInt(int val) throws UncheckedIOException {
         write(compactIntToByteArray(val));
     }
 
-    default void writeLong(long val) throws IOException {
+    default void writeLong(long val) throws UncheckedIOException {
         write((int) val);
         write((int) (val >> 8));
         write((int) (val >> 16));
@@ -73,25 +78,29 @@ public interface DataOutput {
         write((int) (val >> 56));
     }
 
-    default void writeFloat(float val) throws IOException {
+    default void writeFloat(float val) throws UncheckedIOException {
         writeInt(Float.floatToIntBits(val));
     }
 
     Charset getCharset();
 
-    default void writeBytes(String s) throws IOException {
+    default void writeBytes(String s) throws UncheckedIOException {
         byte[] strBytes = (s + '\0').getBytes(getCharset());
         writeCompactInt(strBytes.length);
         write(strBytes);
     }
 
-    default void writeChars(String s) throws IOException {
-        byte[] strBytes = (s + '\0').getBytes("utf-16le");
-        writeCompactInt(-strBytes.length);
-        write(strBytes);
+    default void writeChars(String s) throws UncheckedIOException {
+        try {
+            byte[] strBytes = (s + '\0').getBytes("utf-16le");
+            writeCompactInt(-strBytes.length);
+            write(strBytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    default void writeLine(String s) throws IOException {
+    default void writeLine(String s) throws UncheckedIOException {
         try {
             if (getCharset().newEncoder().canEncode(s)) {
                 writeBytes(s);
@@ -103,16 +112,97 @@ public interface DataOutput {
         writeChars(s);
     }
 
-    default void writeUTF(String s) throws IOException {
-        byte[] strBytes = s.getBytes("utf-16le");
-        writeInt(strBytes.length);
-        write(strBytes);
+    default void writeUTF(String s) throws UncheckedIOException {
+        try {
+            byte[] strBytes = s.getBytes("utf-16le");
+            writeInt(strBytes.length);
+            write(strBytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    default void writeByteArray(byte[] array) throws IOException {
+    default void writeByteArray(byte[] array) throws UncheckedIOException {
         writeCompactInt(array.length);
         write(array);
     }
 
     int getPosition() throws IOException;
+
+    static DataOutput dataOutput(OutputStream outputStream, Charset charset) {
+        return dataOutput(outputStream, 0, charset);
+    }
+
+    static DataOutput dataOutput(OutputStream outputStream, int position, Charset charset) {
+        return new DataOutput() {
+            private int pos = position;
+
+            @Override
+            public Charset getCharset() {
+                return charset;
+            }
+
+            @Override
+            public int getPosition() {
+                return pos;
+            }
+
+            protected void incCount(int value) {
+                int temp = pos + value;
+                if (temp < 0) {
+                    temp = Integer.MAX_VALUE;
+                }
+                pos = temp;
+            }
+
+            @Override
+            public void write(int b) throws UncheckedIOException {
+                try {
+                    outputStream.write(b);
+
+                    incCount(1);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws UncheckedIOException {
+                try {
+                    outputStream.write(b, off, len);
+
+                    incCount(len);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
+    }
+
+    static DataOutput dataOutput(ByteBuffer buffer, Charset charset) {
+        return dataOutput(buffer, 0, charset);
+    }
+
+    static DataOutput dataOutput(ByteBuffer buffer, int position, Charset charset) {
+        return new DataOutput() {
+            @Override
+            public void write(int b) throws UncheckedIOException {
+                try {
+                    buffer.put((byte) b);
+                } catch (BufferOverflowException | ReadOnlyBufferException e) {
+                    throw new UncheckedIOException(new IOException(e));
+                }
+            }
+
+            @Override
+            public Charset getCharset() {
+                return charset;
+            }
+
+            @Override
+            public int getPosition() throws UncheckedIOException {
+                return position + buffer.position();
+            }
+        };
+    }
 }

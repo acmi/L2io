@@ -23,6 +23,7 @@ package acmi.l2.clientmod.io;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 
@@ -36,52 +37,44 @@ public class RandomAccessFile implements RandomAccess {
     protected final int startOffset;
 
     private final Charset charset;
-    private IOFactory ioFactory;
-    private Context context;
 
-    public <T extends Context> RandomAccessFile(File f, boolean readOnly, Charset charset, IOFactory<T> ioFactory, T context) throws IOException {
-        file = new java.io.RandomAccessFile(f, readOnly ? "r" : "rw");
-        packageName = f.getName().substring(0, f.getName().lastIndexOf('.'));
-        path = f.getPath();
+    public RandomAccessFile(File f, boolean readOnly, Charset charset) throws UncheckedIOException {
+        try {
+            file = new java.io.RandomAccessFile(f, readOnly ? "r" : "rw");
+            packageName = f.getName().substring(0, f.getName().lastIndexOf('.'));
+            path = f.getPath();
 
-        String l2CryptHeader;
-        if (file.length() >= 28 && (l2CryptHeader = getCryptHeader(file)).startsWith("Lineage2Ver")) {
-            startOffset = 28;
-            cryptVer = Integer.parseInt(l2CryptHeader.substring(11));
-            switch (cryptVer) {
-                case 111:
-                    xorKey = 0xACACACAC;
-                    break;
-                case 121:
-                    int xb = getCryptKey(f.getName());
-                    xorKey = xb | (xb << 8) | (xb << 16) | (xb << 24);
-                    break;
-                default:
-                    throw new IOException("Crypt " + cryptVer + " is not supported.");
+            String l2CryptHeader;
+            if (file.length() >= 28 && (l2CryptHeader = getCryptHeader(file)).startsWith("Lineage2Ver")) {
+                startOffset = 28;
+                cryptVer = Integer.parseInt(l2CryptHeader.substring(11));
+                switch (cryptVer) {
+                    case 111:
+                        xorKey = 0xACACACAC;
+                        break;
+                    case 121:
+                        int xb = getCryptKey(f.getName());
+                        xorKey = xb | (xb << 8) | (xb << 16) | (xb << 24);
+                        break;
+                    default:
+                        throw new IOException("Crypt " + cryptVer + " is not supported.");
+                }
+            } else {
+                startOffset = 0;
+                cryptVer = 0;
+                xorKey = 0;
             }
-        } else {
-            startOffset = 0;
-            cryptVer = 0;
-            xorKey = 0;
+
+            this.charset = charset;
+
+            setPosition(0);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-
-        this.charset = charset;
-        this.ioFactory = ioFactory;
-        this.context = context;
-
-        setPosition(0);
     }
 
-    public RandomAccessFile(File f, boolean readOnly, Charset charset) throws IOException {
-        this(f, readOnly, charset, null, null);
-    }
-
-    public <T extends Context> RandomAccessFile(String path, boolean readOnly, Charset charset, IOFactory<T> ioFactory, T context) throws IOException {
-        this(new File(path), readOnly, charset, ioFactory, context);
-    }
-
-    public RandomAccessFile(String path, boolean readOnly, Charset charset) throws IOException {
-        this(path, readOnly, charset, null, null);
+    public RandomAccessFile(String path, boolean readOnly, Charset charset) throws UncheckedIOException {
+        this(new File(path), readOnly, charset);
     }
 
     private static String getCryptHeader(java.io.RandomAccessFile file) throws IOException {
@@ -117,88 +110,102 @@ public class RandomAccessFile implements RandomAccess {
     }
 
     @Override
-    public IOFactory getIOFactory() {
-        return ioFactory;
-    }
-
-    public void setIOFactory(IOFactory ioFactory) {
-        this.ioFactory = ioFactory;
-    }
-
-    @Override
-    public Context getContext() {
-        return context;
-    }
-
-    public void setContext(Context context) {
-        this.context = context;
-    }
-
-    @Override
-    public void setPosition(int pos) throws IOException {
-        file.seek(pos + startOffset);
-    }
-
-    @Override
-    public int getPosition() throws IOException {
-        return (int) file.getFilePointer() - startOffset;
-    }
-
-    @Override
-    public void trimToPosition() throws IOException {
-        file.setLength(file.getFilePointer());
-    }
-
-    @Override
-    public void close() throws IOException {
-        file.close();
-    }
-
-    @Override
-    public int read() throws IOException {
-        if (cryptVer != 0) {
-            int b = file.read();
-            if (b == -1)
-                return -1;
-
-            return (b ^ xorKey) & 0xff;
-        } else
-            return file.read();
-    }
-
-    @Override
-    public void readFully(byte b[], int off, int len) throws IOException {
-        file.readFully(b, off, len);
-
-        if (cryptVer != 0) {
-            for (int i = 0; i < len; i++)
-                b[off + i] ^= xorKey;
+    public void setPosition(int pos) throws UncheckedIOException {
+        try {
+            file.seek(pos + startOffset);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
-    public void write(int b) throws IOException {
-        if (cryptVer != 0)
-            file.write(b ^ xorKey);
-        else
-            file.write(b);
+    @Override
+    public int getPosition() throws UncheckedIOException {
+        try {
+            return (int) file.getFilePointer() - startOffset;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    public void write(byte[] b, int off, int len) throws IOException {
+    @Override
+    public void trimToPosition() throws UncheckedIOException {
+        try {
+            file.setLength(file.getFilePointer());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public void close() throws UncheckedIOException {
+        try {
+            file.close();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public int read() throws UncheckedIOException {
+        try {
+            if (cryptVer != 0) {
+                int b = file.read();
+                if (b == -1)
+                    return -1;
+
+                return (b ^ xorKey) & 0xff;
+            } else
+                return file.read();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public void readFully(byte b[], int off, int len) throws UncheckedIOException {
+        try {
+            file.readFully(b, off, len);
+
+            if (cryptVer != 0) {
+                for (int i = 0; i < len; i++)
+                    b[off + i] ^= xorKey;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void write(int b) throws UncheckedIOException {
+        try {
+            if (cryptVer != 0)
+                file.write(b ^ xorKey);
+            else
+                file.write(b);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void write(byte[] b, int off, int len) throws UncheckedIOException {
         if ((off | len | (b.length - (len + off)) | (off + len)) < 0)
             throw new IndexOutOfBoundsException();
 
-        if (cryptVer != 0) {
-            byte[] toWrite = Arrays.copyOfRange(b, off, off + len);
-            for (int i = 0; i < toWrite.length; i++)
-                toWrite[i] ^= xorKey;
-            file.write(toWrite);
-        } else {
-            file.write(b, off, len);
+        try {
+            if (cryptVer != 0) {
+                byte[] toWrite = Arrays.copyOfRange(b, off, off + len);
+                for (int i = 0; i < toWrite.length; i++)
+                    toWrite[i] ^= xorKey;
+                file.write(toWrite);
+            } else {
+                file.write(b, off, len);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public RandomAccessFile openNewSession(boolean readOnly) throws IOException {
-        return new RandomAccessFile(getPath(), readOnly, getCharset(), getIOFactory(), getContext());
+    public RandomAccessFile openNewSession(boolean readOnly) throws UncheckedIOException {
+        return new RandomAccessFile(getPath(), readOnly, getCharset());
     }
 }

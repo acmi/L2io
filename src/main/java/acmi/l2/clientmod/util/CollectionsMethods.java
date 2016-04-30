@@ -19,25 +19,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package acmi.l2.clientmod.io;
+package acmi.l2.clientmod.util;
 
-import java.io.IOException;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.function.Predicate;
 
-public interface ObjectInput<T extends Context> extends DataInput {
-    IOFactory<T> getIOFactory();
-
-    T getContext();
-
-    default Object readObject(Class<?> clazz) throws IOException {
-        if (getIOFactory() == null)
-            throw new IllegalStateException("IOFactory is null");
-
-        IOFactory.IO io = getIOFactory().forClass(clazz);
-        Object obj = io.instantiate(this);
-        if (obj != null) {
-            io = getIOFactory().forClass(obj.getClass());
-            io.readObject(obj, this);
-        }
-        return obj;
+public class CollectionsMethods {
+    public static <T> int indexIf(List<T> list, Predicate<T> condition) {
+        ListIterator<T> it = list.listIterator();
+        while (it.hasNext())
+            if (condition.test(it.next()))
+                return it.previousIndex();
+        return -1;
     }
 }

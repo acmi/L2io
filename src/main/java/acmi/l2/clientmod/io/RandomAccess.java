@@ -21,19 +21,16 @@
  */
 package acmi.l2.clientmod.io;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.io.UncheckedIOException;
 
-public interface RandomAccess<T extends Context> extends ObjectInput<T>, ObjectOutput<T>, Closeable {
+public interface RandomAccess extends DataInput, DataOutput, AutoCloseable {
     String getName();
 
-    void setPosition(int position) throws IOException;
+    void setPosition(int position) throws UncheckedIOException;
 
-    void trimToPosition() throws IOException;
+    void trimToPosition() throws UncheckedIOException;
 
-    RandomAccess openNewSession(boolean readOnly) throws IOException;
+    RandomAccess openNewSession(boolean readOnly) throws UncheckedIOException;
 
-    default T getContext() {
-        return null;
-    }
+    void close() throws UncheckedIOException;
 }
