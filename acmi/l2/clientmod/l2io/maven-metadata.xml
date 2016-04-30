@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>acmi.l2.clientmod</groupId>
+  <artifactId>l2io</artifactId>
+  <versioning>
+    <release>2.0-BETA</release>
+    <versions>
+      <version>2.0-BETA</version>
+    </versions>
+    <lastUpdated>20160430170135</lastUpdated>
+  </versioning>
+</metadata>
