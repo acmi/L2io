@@ -6,7 +6,8 @@
     <release>2.0-BETA</release>
     <versions>
       <version>2.0-BETA</version>
+      <version>2.0-BETA-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20160430170135</lastUpdated>
+    <lastUpdated>20160430175148</lastUpdated>
   </versioning>
 </metadata>
