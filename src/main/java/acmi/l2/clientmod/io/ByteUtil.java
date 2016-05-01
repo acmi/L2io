@@ -49,21 +49,18 @@ public class ByteUtil {
     }
 
     public static int sizeOfCompactInt(int i) {
-        if (i == Integer.MIN_VALUE)
-            return 5;
-
         i = Math.abs(i);
 
-        if (i < 1 << 6)
-            return 1;
-        else if (i < 1 << (6 + 7))
-            return 2;
-        else if (i < 1 << (6 + 7 + 7))
-            return 3;
-        else if (i < 1 << (6 + 7 + 7 + 7))
-            return 4;
-        else
+        if (i >= 1 << (6 + 7 + 7 + 7))
             return 5;
+        else if (i >= 1 << (6 + 7 + 7))
+            return 4;
+        else if (i >= 1 << (6 + 7))
+            return 3;
+        else if (i >= 1 << (6))
+            return 2;
+        else
+            return 1;
     }
 
     public static UUID uuidFromBytes(byte[] uuidBytes) {

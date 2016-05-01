@@ -102,9 +102,14 @@ public interface DataInput {
                     break;
             }
         }
-        if (signed)
-            output *= -1;
-        return output;
+        if (signed) {
+            if (output == 0)
+                return Integer.MIN_VALUE;
+            else
+                return -output;
+        } else {
+            return output;
+        }
     }
 
     default long readLong() throws UncheckedIOException {

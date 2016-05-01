@@ -61,9 +61,14 @@ public class BufferUtil {
                     break;
             }
         }
-        if (signed)
-            output = -output;
-        return output;
+        if (signed) {
+            if (output == 0)
+                return Integer.MIN_VALUE;
+            else
+                return -output;
+        } else {
+            return output;
+        }
     }
 
     public static void putCompactInt(ByteBuffer buffer, int v) throws BufferOverflowException, ReadOnlyBufferException {
