@@ -84,32 +84,7 @@ public interface DataInput {
     }
 
     default int readCompactInt() throws UncheckedIOException {
-        int output = 0;
-        boolean signed = false;
-        for (int i = 0; i < 5; i++) {
-            int x = readUnsignedByte();
-            if (i == 0) {
-                if ((x & 0x80) > 0)
-                    signed = true;
-                output |= (x & 0x3F);
-                if ((x & 0x40) == 0)
-                    break;
-            } else if (i == 4) {
-                output |= (x & 0x1F) << (6 + (3 * 7));
-            } else {
-                output |= (x & 0x7F) << (6 + ((i - 1) * 7));
-                if ((x & 0x80) == 0)
-                    break;
-            }
-        }
-        if (signed) {
-            if (output == 0)
-                return Integer.MIN_VALUE;
-            else
-                return -output;
-        } else {
-            return output;
-        }
+        return ByteUtil.compactIntFromBytes(this::readUnsignedByte);
     }
 
     default long readLong() throws UncheckedIOException {

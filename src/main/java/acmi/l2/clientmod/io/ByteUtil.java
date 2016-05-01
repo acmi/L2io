@@ -24,6 +24,7 @@ package acmi.l2.clientmod.io;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 
 public class ByteUtil {
     public static byte[] compactIntToByteArray(int v) {
@@ -61,6 +62,35 @@ public class ByteUtil {
             return 2;
         else
             return 1;
+    }
+
+    public static int compactIntFromBytes(IntSupplier unsignedByteSupplier) {
+        int output = 0;
+        boolean signed = false;
+        for (int i = 0; i < 5; i++) {
+            int x = unsignedByteSupplier.getAsInt();
+            if (i == 0) {
+                if ((x & 0x80) > 0)
+                    signed = true;
+                output |= (x & 0x3F);
+                if ((x & 0x40) == 0)
+                    break;
+            } else if (i == 4) {
+                output |= (x & 0x1F) << (6 + (3 * 7));
+            } else {
+                output |= (x & 0x7F) << (6 + ((i - 1) * 7));
+                if ((x & 0x80) == 0)
+                    break;
+            }
+        }
+        if (signed) {
+            if (output == 0)
+                return Integer.MIN_VALUE;
+            else
+                return -output;
+        } else {
+            return output;
+        }
     }
 
     public static UUID uuidFromBytes(byte[] uuidBytes) {
