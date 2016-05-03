@@ -31,6 +31,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static acmi.l2.clientmod.io.ByteUtil.*;
@@ -39,7 +40,7 @@ import static acmi.l2.clientmod.util.CollectionsMethods.indexIf;
 
 @SuppressWarnings("unused")
 public class UnrealPackage implements AutoCloseable {
-    private static Charset defaultCharset = Charset.forName("EUC-KR");
+    private static Charset defaultCharset = Charset.forName(System.getProperty("UnrealPackage.defaultCharset", "EUC-KR"));
 
     public static Charset getDefaultCharset() {
         return defaultCharset;
@@ -66,7 +67,7 @@ public class UnrealPackage implements AutoCloseable {
     private RandomAccess file;
 
     private int version;
-    private int licensee;
+    private int license;
     private int flags;
 
     private List<NameEntry> names;
@@ -100,7 +101,7 @@ public class UnrealPackage implements AutoCloseable {
             throw new UncheckedIOException(new IOException("Not a L2 package file."));
 
         version = file.readUnsignedShort();
-        licensee = file.readUnsignedShort();
+        license = file.readUnsignedShort();
         flags = file.readInt();
 
         readNameTable();
@@ -163,15 +164,15 @@ public class UnrealPackage implements AutoCloseable {
         this.version = version;
     }
 
-    public int getLicensee() {
-        return licensee;
+    public int getLicense() {
+        return license;
     }
 
-    public void setLicensee(int licensee) throws UncheckedIOException {
+    public void setLicense(int license) throws UncheckedIOException {
         file.setPosition(LICENSEE_OFFSET);
-        file.writeShort(licensee);
+        file.writeShort(license);
 
-        this.licensee = licensee;
+        this.license = license;
     }
 
     public int getFlags() {
@@ -279,10 +280,11 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     public int nameReference(String name) {
-        Optional<NameEntry> entry = getNameTable().stream()
+        return getNameTable().parallelStream()
                 .filter(e -> e.getName().equalsIgnoreCase(name))
-                .findAny();
-        return entry.isPresent() ? entry.get().getIndex() : -1;
+                .findAny()
+                .map(PackageEntry::getIndex)
+                .orElse(-1);
     }
 
     public Entry objectReference(int ref) {
@@ -298,29 +300,34 @@ public class UnrealPackage implements AutoCloseable {
         return objectReference(index);
     }
 
-    public int objectReference(String name, String clazz) {
+    public int objectReferenceByName(String name, Predicate<String> classFilter) {
+        if (name == null || name.isEmpty())
+            return 0;
+
         int ref;
 
-        if ((ref = importReference(name, clazz)) != 0)
+        if ((ref = importReferenceByName(name, classFilter)) != 0)
             return ref;
 
-        if ((ref = exportReference(name, clazz)) != 0)
+        if ((ref = exportReferenceByName(name, classFilter)) != 0)
             return ref;
 
         return 0;
     }
 
-    public int importReference(String name, String clazz) {
-        return getImportTable().stream()
+    public int importReferenceByName(String name, Predicate<String> classFilter) {
+        return getImportTable().parallelStream()
                 .filter(entry -> entry.getObjectFullName().equalsIgnoreCase(name))
+                .filter(entry -> classFilter.test(entry.getFullClassName()))
                 .findAny()
                 .map(ImportEntry::getObjectReference)
                 .orElse(0);
     }
 
-    public int exportReference(String name, String clazz) {
-        return getExportTable().stream()
+    public int exportReferenceByName(String name, Predicate<String> classFilter) {
+        return getExportTable().parallelStream()
                 .filter(entry -> entry.getObjectInnerFullName().equalsIgnoreCase(name))
+                .filter(entry -> classFilter.test(entry.getFullClassName()))
                 .findAny()
                 .map(ExportEntry::getObjectReference)
                 .orElse(0);
@@ -403,10 +410,8 @@ public class UnrealPackage implements AutoCloseable {
         readExportTable();
     }
 
-    private byte[] bufferArray = new byte[0x10000];
-
     private void writeNameTable(List<NameEntry> nameTable) throws UncheckedIOException {
-        RandomAccessMemory buffer = new RandomAccessMemory(null, bufferArray, file.getCharset());
+        RandomAccessMemory buffer = new RandomAccessMemory(null, file.getCharset());
         for (NameEntry entry : nameTable) {
             buffer.writeLine(entry.getName());
             buffer.writeInt(entry.getFlags());
@@ -415,7 +420,7 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     private void writeImportTable(List<ImportEntry> importTable) throws UncheckedIOException {
-        RandomAccessMemory buffer = new RandomAccessMemory(null, bufferArray, file.getCharset());
+        RandomAccessMemory buffer = new RandomAccessMemory(null, file.getCharset());
         for (ImportEntry entry : importTable) {
             buffer.writeCompactInt(entry.classPackage);
             buffer.writeCompactInt(entry.className);
@@ -426,7 +431,7 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     private void writeExportTable(List<ExportEntry> exportTable) throws UncheckedIOException {
-        RandomAccessMemory buffer = new RandomAccessMemory(null, bufferArray, file.getCharset());
+        RandomAccessMemory buffer = new RandomAccessMemory(null, file.getCharset());
         for (ExportEntry entry : exportTable) {
             buffer.writeCompactInt(entry.objectClass);
             buffer.writeCompactInt(entry.objectSuperClass);
@@ -455,14 +460,18 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     public OptionalInt getDataStartOffset() {
-        return getExportTable().stream()
+        return getExportTable().parallelStream()
                 .filter(entry -> entry.getSize() > 0)
                 .mapToInt(ExportEntry::getOffset)
                 .min();
     }
 
     public OptionalInt getDataEndOffset() {
-        return getExportTable().stream()
+        return getDataEndOffset(getExportTable());
+    }
+
+    protected static OptionalInt getDataEndOffset(List<ExportEntry> exportTable) {
+        return exportTable.parallelStream()
                 .filter(entry -> entry.getSize() > 0)
                 .mapToInt(entry -> entry.getOffset() + entry.getSize())
                 .max();
@@ -484,6 +493,14 @@ public class UnrealPackage implements AutoCloseable {
             LoadForServer,
             LoadForEdit);
 
+    public void addNameEntries(String... names) throws UncheckedIOException {
+        addNameEntries(Arrays.asList(names));
+    }
+
+    public void addNameEntries(List<String> names) throws UncheckedIOException {
+        addNameEntries(names.stream().collect(Collectors.toMap(name -> name, name -> DEFAULT_NAME_FLAGS)));
+    }
+
     public void addNameEntries(Map<String, Integer> names) throws UncheckedIOException {
         updateNameTable(nameTable -> names.forEach((k, v) -> {
             UnrealPackage.NameEntry entry = new UnrealPackage.NameEntry(null, 0, k, v);
@@ -499,7 +516,7 @@ public class UnrealPackage implements AutoCloseable {
         });
     }
 
-    public void addImportEntries(Map<String, String> imports, boolean force) throws UncheckedIOException {
+    public void addImportEntries(Map<String, String> imports) throws UncheckedIOException {
         Map<String, Integer> namesToAdd = new HashMap<>();
         if (nameReference("Core") == -1)
             namesToAdd.put("Core", DEFAULT_NAME_FLAGS | Native.getMask());
@@ -544,7 +561,7 @@ public class UnrealPackage implements AutoCloseable {
                         pckg,
                         nameReference(namePath[namePath.length - 1]));
                 UnrealPackage.ImportEntry toFind = importEntry;
-                if (force || indexIf(importTable, ie -> toFind.objectPackage == ie.objectPackage &&
+                if (indexIf(importTable, ie -> toFind.objectPackage == ie.objectPackage &&
                         toFind.objectName == ie.objectName &&
                         toFind.classPackage == ie.classPackage &&
                         toFind.className == ie.className) == -1)
@@ -555,8 +572,7 @@ public class UnrealPackage implements AutoCloseable {
 
     public void renameImport(int index, String importDst) throws UncheckedIOException {
         addImportEntries(
-                Collections.singletonMap(importDst, getImportTable().get(index).getFullClassName()),
-                true
+                Collections.singletonMap(importDst, getImportTable().get(index).getFullClassName())
         );
 
         updateImportTable(importTable -> importTable.set(index, importTable.remove(importTable.size() - 1)));
@@ -569,7 +585,7 @@ public class UnrealPackage implements AutoCloseable {
 
         addNameEntries(Arrays.stream(clazz)
                 .filter(s -> nameReference(s) == -1)
-                .collect(Collectors.toMap(v -> v, v -> DEFAULT_NAME_FLAGS)));
+                .collect(Collectors.toList()));
 
         updateImportTable(importTable -> {
             UnrealPackage.ImportEntry entry = importTable.get(index);
@@ -580,26 +596,26 @@ public class UnrealPackage implements AutoCloseable {
 
     public void addExportEntry(String objectName, String objectClass, String objectSuperClass, byte[] data, int flags) throws UncheckedIOException {
         Map<String, String> classes = new HashMap<>();
-        if (objectClass != null && objectReference(objectClass, "Core.Class") == 0)
+        if (objectClass != null && objectReferenceByName(objectClass, IS_CLASS) == 0)
             classes.put(objectClass, "Core.Class");
-        if (objectSuperClass != null && objectReference(objectSuperClass, "Core.Class") == 0)
+        if (objectSuperClass != null && objectReferenceByName(objectSuperClass, IS_CLASS) == 0)
             classes.put(objectClass, "Core.Class");
         if (!classes.isEmpty())
-            addImportEntries(classes, false);
+            addImportEntries(classes);
 
         Map<String, Integer> namesToAdd = new HashMap<>();
         String[] namePath = objectName.split("\\.");
-        Arrays.stream(namePath)
+        addNameEntries(Arrays.stream(namePath)
                 .filter(s -> nameReference(s) == -1)
-                .forEach(s -> namesToAdd.put(s, DEFAULT_NAME_FLAGS));
-        addNameEntries(namesToAdd);
+                .collect(Collectors.toList()));
 
         updateExportTable(exportTable -> {
-            int pckgInd = importReference("Core.Package", "Core.Class");
+            int pckgInd = importReferenceByName("Core.Package", IS_CLASS);
             byte[] pckgData = compactIntToByteArray(nameReference("None"));
             int pckg = 0;
             UnrealPackage.ExportEntry exportEntry;
             for (int i = 0; i < namePath.length - 1; i++) {
+                file.setPosition(findPositionForNewExportEntryData(exportTable, pckgData.length).orElse(headerEndOffset));
                 exportEntry = new UnrealPackage.ExportEntry(this,
                         0,
                         pckgInd,
@@ -609,7 +625,10 @@ public class UnrealPackage implements AutoCloseable {
                         DEFAULT_OBJECT_FLAGS,
                         pckgData.length,
                         file.getPosition());
-                if ((pckg = exportTable.indexOf(exportEntry)) == -1) {
+                ExportEntry toFind = exportEntry;
+                if ((pckg = indexIf(exportTable, ee ->
+                        ee.objectPackage == toFind.objectPackage &&
+                                ee.objectName == toFind.objectName)) == -1) {
                     exportTable.add(exportEntry);
                     pckg = exportTable.size() - 1;
                     file.write(pckgData);
@@ -617,14 +636,16 @@ public class UnrealPackage implements AutoCloseable {
                 pckg++;
             }
 
+            file.setPosition(findPositionForNewExportEntryData(exportTable, data.length).orElse(headerEndOffset));
             exportEntry = new UnrealPackage.ExportEntry(this,
                     0,
-                    objectReference(objectClass, "Core.Class"),
-                    objectReference(objectSuperClass, "Core.Class"),
+                    objectReferenceByName(objectClass, IS_CLASS),
+                    objectReferenceByName(objectSuperClass, IS_CLASS),
                     pckg,
                     nameReference(namePath[namePath.length - 1]),
                     flags,
-                    data.length, file.getPosition());
+                    data.length,
+                    file.getPosition());
             UnrealPackage.ExportEntry toFind = exportEntry;
             if (indexIf(exportTable, ee -> ee.objectPackage == toFind.objectPackage &&
                     ee.objectName == toFind.objectName &&
@@ -633,21 +654,21 @@ public class UnrealPackage implements AutoCloseable {
                 exportTable.add(exportEntry);
                 file.write(data);
             }
+
+            file.setPosition(getDataEndOffset(exportTable).orElseThrow(IllegalStateException::new));
         });
     }
 
     public void renameExport(int index, String nameDst) throws UncheckedIOException {
-        List<String> namesToAdd = new ArrayList<>();
         String[] namePath = nameDst.split("\\.");
-        if (namePath.length > 1 && objectReference("Core.Package", "Core.Class") == 0)
-            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"), true);
-        for (String s : namePath)
-            if (nameReference(s) == -1)
-                namesToAdd.add(s);
-        addNameEntries(namesToAdd.stream().collect(Collectors.toMap(name -> name, name -> DEFAULT_NAME_FLAGS)));
+        if (namePath.length > 1 && objectReferenceByName("Core.Package", IS_CLASS) == 0)
+            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"));
+        addNameEntries(Arrays.stream(namePath)
+                .filter(s -> nameReference(s) == -1)
+                .collect(Collectors.toList()));
 
         updateExportTable(exportTable -> {
-            int pckgInd = objectReference("Core.Package", "Core.Class");
+            int pckgInd = objectReferenceByName("Core.Package", IS_CLASS);
             byte[] pckgData = ByteUtil.compactIntToByteArray(nameReference("None"));
             int pckg = 0;
             UnrealPackage.ExportEntry exportEntry;
@@ -660,7 +681,10 @@ public class UnrealPackage implements AutoCloseable {
                         nameReference(namePath[i]),
                         Public.getMask() | LoadForServer.getMask() | LoadForEdit.getMask(),
                         pckgData.length, file.getPosition());
-                if ((pckg = exportTable.indexOf(exportEntry)) == -1) {
+                ExportEntry toFind = exportEntry;
+                if ((pckg = indexIf(exportTable, ee ->
+                        ee.objectPackage == toFind.objectPackage &&
+                                ee.objectName == toFind.objectName)) == -1) {
                     exportTable.add(exportEntry);
                     pckg = exportTable.size() - 1;
                     file.write(pckgData);
@@ -682,10 +706,10 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     public void removeExport(int index) throws UncheckedIOException {
-        if (objectReference("Core.Package", "Core.Class") == 0)
-            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"), true);
+        if (objectReferenceByName("Core.Package", IS_CLASS) == 0)
+            addImportEntries(Collections.singletonMap("Core.Package", "Core.Class"));
 
-        int pckgInd = objectReference("Core.Package", "Core.Class");
+        int pckgInd = objectReferenceByName("Core.Package", IS_CLASS);
         byte[] pckgData = compactIntToByteArray(nameReference("None"));
 
         updateExportTable(exportTable -> {
@@ -695,11 +719,17 @@ public class UnrealPackage implements AutoCloseable {
             entry.objectFlags = ObjectFlag.getFlags(Public, LoadForClient, LoadForServer, LoadForEdit);
             entry.setObjectRawData(pckgData, false);
 
-            file.setPosition(getDataEndOffset().orElse(headerEndOffset));
+            file.setPosition(getDataEndOffset().orElseThrow(IllegalStateException::new));
         });
     }
 
-    private static abstract class PackageEntry {
+    private static OptionalInt findPositionForNewExportEntryData(List<ExportEntry> exportTable, int size) {
+        return getDataEndOffset(exportTable);
+    }
+
+    private static final Predicate<String> IS_CLASS = clazz -> clazz.equalsIgnoreCase("Core.Class");
+
+    private static abstract class PackageEntry<T extends PackageEntry<T>> {
         private final UnrealPackage unrealPackage;
         private final int index;
 
@@ -712,12 +742,22 @@ public class UnrealPackage implements AutoCloseable {
             return unrealPackage;
         }
 
+        public abstract List<T> getTable();
+
         public int getIndex() {
             return index;
         }
+
+        public T previous() throws IndexOutOfBoundsException {
+            return getTable().get(getIndex() - 1);
+        }
+
+        public T next() throws IndexOutOfBoundsException {
+            return getTable().get(getIndex() + 1);
+        }
     }
 
-    public static final class Generation extends PackageEntry {
+    public static final class Generation extends PackageEntry<Generation> {
         private final int exportCount;
         private final int importCount;
 
@@ -736,6 +776,11 @@ public class UnrealPackage implements AutoCloseable {
         }
 
         @Override
+        public List<Generation> getTable() {
+            return getUnrealPackage().getGenerations();
+        }
+
+        @Override
         public String toString() {
             return "Generation[" +
                     "exportCount=" + exportCount +
@@ -744,7 +789,7 @@ public class UnrealPackage implements AutoCloseable {
         }
     }
 
-    public static final class NameEntry extends PackageEntry {
+    public static final class NameEntry extends PackageEntry<NameEntry> {
         private final String name;
         private int flags;
 
@@ -760,6 +805,11 @@ public class UnrealPackage implements AutoCloseable {
 
         public int getFlags() {
             return flags;
+        }
+
+        @Override
+        public List<NameEntry> getTable() {
+            return getUnrealPackage().getNameTable();
         }
 
         public String toString() {
@@ -791,7 +841,7 @@ public class UnrealPackage implements AutoCloseable {
         }
     }
 
-    public static abstract class Entry extends PackageEntry {
+    public static abstract class Entry<T extends Entry<T>> extends PackageEntry<T> {
         protected final int objectPackage;
         protected final int objectName;
 
@@ -850,7 +900,9 @@ public class UnrealPackage implements AutoCloseable {
         }
     }
 
-    public static final class ExportEntry extends Entry {
+    public static final class ExportEntry extends Entry<ExportEntry> {
+        private static final boolean eraseUnusedSpace = Boolean.parseBoolean(System.getProperty("UnrealPackage.ExportEntry.eraseUnusedSpace", "false"));
+
         private int objectClass;
         private int objectSuperClass;
         private int objectFlags;
@@ -937,15 +989,25 @@ public class UnrealPackage implements AutoCloseable {
                     }
                 }
             } else {
-//                //clear
-//                getUnrealPackage().file.setPosition(getOffset());
-//                getUnrealPackage().file.write(new byte[getSize()]);
+                if (eraseUnusedSpace) {
+                    getUnrealPackage().file.setPosition(getOffset());
+                    getUnrealPackage().file.write(new byte[getSize()]);
+                }
 
-                getUnrealPackage().file.setPosition(getUnrealPackage().getDataEndOffset().orElse(getUnrealPackage().headerEndOffset));
+                boolean isLast = getUnrealPackage().getExportTable()
+                        .parallelStream()
+                        .filter(entry -> entry.getSize() > 0)
+                        .mapToInt(ExportEntry::getOffset)
+                        .max()
+                        .orElseThrow(IllegalStateException::new) == offset;
+                int newOffset = isLast ? offset :
+                        findPositionForNewExportEntryData(getUnrealPackage().getExportTable(), data.length).orElseThrow(IllegalStateException::new);
+                getUnrealPackage().file.setPosition(newOffset);
                 offset = getUnrealPackage().file.getPosition();
                 size = data.length;
                 getUnrealPackage().file.write(data);
 
+                getUnrealPackage().file.setPosition(getUnrealPackage().getDataEndOffset().orElseThrow(IllegalStateException::new));
                 int nameTablePosition = getUnrealPackage().file.getPosition();
                 getUnrealPackage().writeNameTable(getUnrealPackage().getNameTable());
                 int importTablePosition = getUnrealPackage().file.getPosition();
@@ -973,20 +1035,17 @@ public class UnrealPackage implements AutoCloseable {
         }
 
         @Override
+        public List<ExportEntry> getTable() {
+            return getUnrealPackage().getExportTable();
+        }
+
+        @Override
         public String toString() {
             return getObjectInnerFullName();
         }
-
-        public ExportEntry previous() {
-            return getUnrealPackage().getExportTable().get(getIndex() - 1);
-        }
-
-        public ExportEntry next() {
-            return getUnrealPackage().getExportTable().get(getIndex() + 1);
-        }
     }
 
-    public static final class ImportEntry extends Entry {
+    public static final class ImportEntry extends Entry<ImportEntry> {
         private int classPackage;
         private int className;
 
@@ -1011,6 +1070,7 @@ public class UnrealPackage implements AutoCloseable {
             return getUnrealPackage().getNameTable().get(className);
         }
 
+        @Override
         public String getFullClassName() {
             String str = fullClassName.get();
             if (str == null) {
@@ -1021,12 +1081,9 @@ public class UnrealPackage implements AutoCloseable {
             return str;
         }
 
-        public ImportEntry previous() {
-            return getUnrealPackage().getImportTable().get(getIndex() - 1);
-        }
-
-        public ImportEntry next() {
-            return getUnrealPackage().getImportTable().get(getIndex() + 1);
+        @Override
+        public List<ImportEntry> getTable() {
+            return getUnrealPackage().getImportTable();
         }
     }
 

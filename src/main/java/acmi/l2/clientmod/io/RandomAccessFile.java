@@ -21,6 +21,7 @@
  */
 package acmi.l2.clientmod.io;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -146,12 +147,12 @@ public class RandomAccessFile implements RandomAccess {
     }
 
     @Override
-    public int read() throws UncheckedIOException {
+    public int readUnsignedByte() throws UncheckedIOException {
         try {
             if (cryptVer != 0) {
                 int b = file.read();
-                if (b == -1)
-                    return -1;
+                if (b < 0)
+                    throw new EOFException();
 
                 return (b ^ xorKey) & 0xff;
             } else

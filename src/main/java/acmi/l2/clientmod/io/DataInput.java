@@ -29,8 +29,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
 public interface DataInput {
-    int read() throws UncheckedIOException;
-
     default void skip(int n) throws UncheckedIOException {
         if (n <= 0)
             return;
@@ -58,28 +56,19 @@ public interface DataInput {
             b[off + i] = (byte) readUnsignedByte();
     }
 
-    default int readUnsignedByte() throws UncheckedIOException {
-        int b = read();
-        if (b < 0)
-            throw new UncheckedIOException(new EOFException());
-        return b;
-    }
+    int readUnsignedByte() throws UncheckedIOException;
 
     default int readUnsignedShort() throws UncheckedIOException {
-        int ch1 = read();
-        int ch2 = read();
-        if ((ch1 | ch2) < 0)
-            throw new UncheckedIOException(new EOFException());
+        int ch1 = readUnsignedByte();
+        int ch2 = readUnsignedByte();
         return ch1 + (ch2 << 8);
     }
 
     default int readInt() throws UncheckedIOException {
-        int ch1 = read();
-        int ch2 = read();
-        int ch3 = read();
-        int ch4 = read();
-        if ((ch1 | ch2 | ch3 | ch4) < 0)
-            throw new UncheckedIOException(new EOFException());
+        int ch1 = readUnsignedByte();
+        int ch2 = readUnsignedByte();
+        int ch3 = readUnsignedByte();
+        int ch4 = readUnsignedByte();
         return (ch1 + (ch2 << 8) + (ch3 << 16) + (ch4 << 24));
     }
 
@@ -124,7 +113,7 @@ public interface DataInput {
         if (len == 0)
             return "";
 
-        byte[] bytes = new byte[2 * len];
+        byte[] bytes = new byte[len];
         readFully(bytes);
         return new String(bytes, Charset.forName("utf-16le"));
     }
@@ -143,10 +132,10 @@ public interface DataInput {
     int getPosition() throws UncheckedIOException;
 
     static DataInput dataInput(InputStream inputStream, Charset charset) {
-        return dataInput(inputStream, 0, charset);
+        return dataInput(inputStream, charset, 0);
     }
 
-    static DataInput dataInput(InputStream inputStream, int position, Charset charset) {
+    static DataInput dataInput(InputStream inputStream, Charset charset, int position) {
         return new DataInput() {
             private int pos = position;
 
@@ -169,11 +158,14 @@ public interface DataInput {
             }
 
             @Override
-            public int read() throws UncheckedIOException {
+            public int readUnsignedByte() throws UncheckedIOException {
                 try {
                     int tmp = inputStream.read();
-                    if (tmp >= 0)
-                        incCount(1);
+                    if (tmp < 0)
+                        throw new EOFException();
+
+                    incCount(1);
+
                     return tmp;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -203,28 +195,10 @@ public interface DataInput {
     }
 
     static DataInput dataInput(ByteBuffer buffer, Charset charset) {
-        return dataInput(buffer, 0, charset);
+        return dataInput(buffer, charset, 0);
     }
 
-    static DataInput dataInput(ByteBuffer buffer, int position, Charset charset) {
-        return new DataInput() {
-            @Override
-            public int read() throws UncheckedIOException {
-                if (buffer.position() >= buffer.limit())
-                    return -1;
-
-                return buffer.get() & 0xff;
-            }
-
-            @Override
-            public Charset getCharset() {
-                return charset;
-            }
-
-            @Override
-            public int getPosition() throws UncheckedIOException {
-                return position + buffer.position();
-            }
-        };
+    static DataInput dataInput(ByteBuffer buffer, Charset charset, int position) {
+        return RandomAccess.randomAccess(buffer, null, charset, position);
     }
 }

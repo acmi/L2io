@@ -21,14 +21,15 @@
  */
 package acmi.l2.clientmod.io;
 
-import java.io.IOException;
+import java.io.EOFException;
 import java.io.UncheckedIOException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 
 public class RandomAccessMemory implements RandomAccess {
+    private static final int DEFAULT_CAPACITY = 1 << 16;
+
     private final String name;
     private final Charset charset;
     private ByteBuffer buffer;
@@ -37,6 +38,10 @@ public class RandomAccessMemory implements RandomAccess {
         this.name = name;
         this.buffer = ByteBuffer.wrap(data);
         this.charset = charset;
+    }
+
+    public RandomAccessMemory(String name, Charset charset) {
+        this(name, new byte[DEFAULT_CAPACITY], charset);
     }
 
     @Override
@@ -50,31 +55,34 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
-    public int getPosition() throws UncheckedIOException {
+    public int getPosition() {
         return buffer.position();
     }
 
     @Override
-    public void setPosition(int position) throws UncheckedIOException {
-        try {
-            buffer.position(position);
-        } catch (IllegalArgumentException e) {
-            throw new UncheckedIOException(new IOException(e));
-        }
+    public void setPosition(int position) {
+        ensureCapacity(position);
+
+        buffer.position(position);
     }
 
     @Override
-    public int read() throws UncheckedIOException {
-        try {
-            return buffer.get() & 0xff;
-        } catch (BufferUnderflowException e) {
-            throw new UncheckedIOException(new IOException(e));
-        }
+    public void trimToPosition() {
+        buffer.limit(buffer.position());
+    }
+
+    @Override
+    public int readUnsignedByte() throws UncheckedIOException {
+        if (buffer.position() >= buffer.limit())
+            throw new UncheckedIOException(new EOFException());
+
+        return buffer.get() & 0xff;
     }
 
     @Override
     public void write(int b) {
         ensureCapacity(buffer.position() + 1);
+
         buffer.put((byte) b);
     }
 
@@ -111,17 +119,12 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
-    public void trimToPosition() {
-        buffer.limit(buffer.position());
+    public RandomAccess openNewSession(boolean readOnly) {
+        return this;
     }
 
     @Override
     public void close() {
-    }
-
-    @Override
-    public RandomAccess openNewSession(boolean readOnly) {
-        return this;
     }
 
     public void writeTo(DataOutput output) throws UncheckedIOException {

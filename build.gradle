@@ -1,5 +1,5 @@
 group 'acmi.l2.clientmod'
-version '2.0-BETA-SNAPSHOT'
+version '2.0-RC0'
 
 apply plugin: 'java'
 apply plugin: 'maven'
@@ -20,9 +20,9 @@ configure(install.repositories.mavenInstaller) {
         url = 'https://github.com/acmi/L2io'
         licenses {
             license {
-                name 'The MIT License'
-                url 'https://opensource.org/licenses/MIT'
-                distribution 'repo'
+                name = 'The MIT License'
+                url = 'https://opensource.org/licenses/MIT'
+                distribution = 'repo'
             }
         }
         developers {
@@ -33,4 +33,12 @@ configure(install.repositories.mavenInstaller) {
             }
         }
     }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile 'junit:junit:4.12'
 }

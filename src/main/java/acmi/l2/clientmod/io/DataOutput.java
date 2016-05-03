@@ -24,9 +24,7 @@ package acmi.l2.clientmod.io;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-import java.nio.ReadOnlyBufferException;
 import java.nio.charset.Charset;
 
 import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
@@ -85,40 +83,42 @@ public interface DataOutput {
     Charset getCharset();
 
     default void writeBytes(String s) throws UncheckedIOException {
-        byte[] strBytes = (s + '\0').getBytes(getCharset());
-        writeCompactInt(strBytes.length);
-        write(strBytes);
+        if (s == null || s.isEmpty())
+            writeCompactInt(0);
+        else {
+            byte[] strBytes = (s + '\0').getBytes(getCharset());
+            writeCompactInt(strBytes.length);
+            write(strBytes);
+        }
     }
 
     default void writeChars(String s) throws UncheckedIOException {
-        try {
-            byte[] strBytes = (s + '\0').getBytes("utf-16le");
+        if (s == null || s.isEmpty())
+            writeCompactInt(0);
+        else {
+            byte[] strBytes = (s + '\0').getBytes(Charset.forName("utf-16le"));
             writeCompactInt(-strBytes.length);
             write(strBytes);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 
     default void writeLine(String s) throws UncheckedIOException {
-        try {
-            if (getCharset().newEncoder().canEncode(s)) {
-                writeBytes(s);
-                return;
-            }
-        } catch (NullPointerException | UnsupportedOperationException ignore) {
+        if (s == null || s.isEmpty())
+            writeCompactInt(0);
+        else if (getCharset() != null && getCharset().canEncode() && getCharset().newEncoder().canEncode(s)) {
+            writeBytes(s);
+        } else {
+            writeChars(s);
         }
-
-        writeChars(s);
     }
 
     default void writeUTF(String s) throws UncheckedIOException {
-        try {
-            byte[] strBytes = s.getBytes("utf-16le");
+        if (s == null || s.isEmpty())
+            writeInt(0);
+        else {
+            byte[] strBytes = s.getBytes(Charset.forName("utf-16le"));
             writeInt(strBytes.length);
             write(strBytes);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 
@@ -130,10 +130,10 @@ public interface DataOutput {
     int getPosition() throws IOException;
 
     static DataOutput dataOutput(OutputStream outputStream, Charset charset) {
-        return dataOutput(outputStream, 0, charset);
+        return dataOutput(outputStream, charset, 0);
     }
 
-    static DataOutput dataOutput(OutputStream outputStream, int position, Charset charset) {
+    static DataOutput dataOutput(OutputStream outputStream, Charset charset, int position) {
         return new DataOutput() {
             private int pos = position;
 
@@ -180,29 +180,10 @@ public interface DataOutput {
     }
 
     static DataOutput dataOutput(ByteBuffer buffer, Charset charset) {
-        return dataOutput(buffer, 0, charset);
+        return dataOutput(buffer, charset, 0);
     }
 
-    static DataOutput dataOutput(ByteBuffer buffer, int position, Charset charset) {
-        return new DataOutput() {
-            @Override
-            public void write(int b) throws UncheckedIOException {
-                try {
-                    buffer.put((byte) b);
-                } catch (BufferOverflowException | ReadOnlyBufferException e) {
-                    throw new UncheckedIOException(new IOException(e));
-                }
-            }
-
-            @Override
-            public Charset getCharset() {
-                return charset;
-            }
-
-            @Override
-            public int getPosition() throws UncheckedIOException {
-                return position + buffer.position();
-            }
-        };
+    static DataOutput dataOutput(ByteBuffer buffer, Charset charset, int position) {
+        return RandomAccess.randomAccess(buffer, null, charset, position);
     }
 }
