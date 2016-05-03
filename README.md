@@ -38,6 +38,12 @@ gradlew build
 ```
 Append `-x test` to skip tests.
 
+Install to local maven repository
+---------------------------------
+```
+gradlew install
+```
+
 Maven
 -----
 ```maven
@@ -49,7 +55,7 @@ Maven
 <dependency>
     <groupId>acmi.l2.clientmod</groupId>
     <artifactId>l2io</artifactId>
-    <version>2.0-RC0</version>
+    <version>2.0</version>
 </dependency>
 ```
 
@@ -57,11 +63,10 @@ Gradle
 ------
 ```gradle
 repositories {
-    // ...
     maven { url "https://raw.githubusercontent.com/acmi/L2io/mvn-repo" }
 }
 
 dependencies {
-    compile group:'acmi.l2.clientmod', name:'l2io', version: '2.0-RC0'
+    compile group:'acmi.l2.clientmod', name:'l2io', version: '2.0'
 }
 ```

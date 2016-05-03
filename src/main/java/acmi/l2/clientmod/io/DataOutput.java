@@ -123,7 +123,7 @@ public interface DataOutput {
         writeBytes(array);
     }
 
-    int getPosition() throws IOException;
+    int getPosition() throws UncheckedIOException;
 
     static DataOutput dataOutput(OutputStream outputStream, Charset charset) {
         return dataOutput(outputStream, charset, 0);
