@@ -5,10 +5,10 @@ Lineage 2 client files I/O library.
 Usage
 -----
 ```java
+import acmi.l2.clientmod.io.RandomAccess;
 import acmi.l2.clientmod.io.UnrealPackage;
 import java.io.File;
 import java.nio.ByteBuffer;
-import static acmi.l2.clientmod.io.BufferUtil.*;
 
 
 File l2Folder = new File("C:\\Lineage 2");
@@ -22,14 +22,21 @@ try (UnrealPackage up = new UnrealPackage(pckg, true)) {
             .findAny()
             .orElseThrow(() -> new IllegalStateException("Entry not found"));
     byte[] raw = entry.getObjectRawData();
-    ByteBuffer buffer = ByteBuffer.wrap(raw);
-    getCompactInt(buffer); //empty properties
-    buffer.getInt();       //pos
-    buffer.getInt();       //top
-    String text = getString(buffer);
+    RandomAccess buffer = RandomAccess.randomAccess(ByteBuffer.wrap(raw), null, up.getFile().getCharset(), entry.getOffset());
+    buffer.readCompactInt(); //empty properties
+    buffer.readInt();        //pos
+    buffer.readInt();        //top
+    String text = buffer.readLine();
     System.out.println(text);
 }
 ```
+
+Build
+-----
+```
+gradlew build
+```
+Append `-x test` to skip tests.
 
 Maven
 -----
@@ -42,7 +49,7 @@ Maven
 <dependency>
     <groupId>acmi.l2.clientmod</groupId>
     <artifactId>l2io</artifactId>
-    <version>2.0-BETA</version>
+    <version>2.0-RC0</version>
 </dependency>
 ```
 
@@ -55,6 +62,6 @@ repositories {
 }
 
 dependencies {
-    compile group:'acmi.l2.clientmod', name:'l2io', version: '2.0-BETA'
+    compile group:'acmi.l2.clientmod', name:'l2io', version: '2.0-RC0'
 }
 ```
