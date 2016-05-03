@@ -77,7 +77,7 @@ public interface RandomAccess extends DataInput, DataOutput, AutoCloseable {
             }
 
             @Override
-            public void write(int b) throws UncheckedIOException {
+            public void writeByte(int b) throws UncheckedIOException {
                 try {
                     buffer.put((byte) b);
                 } catch (BufferOverflowException | ReadOnlyBufferException e) {

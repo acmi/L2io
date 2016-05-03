@@ -136,7 +136,7 @@ public class UnrealPackage implements AutoCloseable {
         upData.put(ByteUtil.uuidToBytes(UUID.randomUUID()));
 
         randomAccess.setPosition(0);
-        randomAccess.write(data);
+        randomAccess.writeBytes(data);
         randomAccess.trimToPosition();
 
         UnrealPackage up = new UnrealPackage(randomAccess);
@@ -192,7 +192,7 @@ public class UnrealPackage implements AutoCloseable {
 
     public void setGUID(UUID guid) throws UncheckedIOException {
         file.setPosition(GUID_OFFSET);
-        file.write(uuidToBytes(uuid));
+        file.writeBytes(uuidToBytes(uuid));
 
         this.uuid = guid;
     }
@@ -262,7 +262,7 @@ public class UnrealPackage implements AutoCloseable {
 
     public void setUUID(UUID uuid) throws UncheckedIOException {
         file.setPosition(GUID_OFFSET);
-        file.write(uuidToBytes(uuid));
+        file.writeBytes(uuidToBytes(uuid));
 
         this.uuid = uuid;
     }
@@ -482,12 +482,12 @@ public class UnrealPackage implements AutoCloseable {
         file.close();
     }
 
-    private static final int DEFAULT_NAME_FLAGS = UnrealPackage.ObjectFlag.getFlags(
+    public static final int DEFAULT_NAME_FLAGS = UnrealPackage.ObjectFlag.getFlags(
             TagExp,
             LoadForClient,
             LoadForServer,
             LoadForEdit);
-    private static final int DEFAULT_OBJECT_FLAGS = UnrealPackage.ObjectFlag.getFlags(
+    public static final int DEFAULT_OBJECT_FLAGS = UnrealPackage.ObjectFlag.getFlags(
             Public,
             LoadForClient,
             LoadForServer,
@@ -631,7 +631,7 @@ public class UnrealPackage implements AutoCloseable {
                                 ee.objectName == toFind.objectName)) == -1) {
                     exportTable.add(exportEntry);
                     pckg = exportTable.size() - 1;
-                    file.write(pckgData);
+                    file.writeBytes(pckgData);
                 }
                 pckg++;
             }
@@ -652,7 +652,7 @@ public class UnrealPackage implements AutoCloseable {
                     ee.objectClass == toFind.objectClass &&
                     ee.objectSuperClass == toFind.objectSuperClass) == -1) {
                 exportTable.add(exportEntry);
-                file.write(data);
+                file.writeBytes(data);
             }
 
             file.setPosition(getDataEndOffset(exportTable).orElseThrow(IllegalStateException::new));
@@ -687,7 +687,7 @@ public class UnrealPackage implements AutoCloseable {
                                 ee.objectName == toFind.objectName)) == -1) {
                     exportTable.add(exportEntry);
                     pckg = exportTable.size() - 1;
-                    file.write(pckgData);
+                    file.writeBytes(pckgData);
                 }
                 pckg++;
             }
@@ -979,7 +979,7 @@ public class UnrealPackage implements AutoCloseable {
         public void setObjectRawData(byte[] data, boolean writeExportTable) throws UncheckedIOException {
             if (data.length <= getSize()) {
                 getUnrealPackage().file.setPosition(getOffset());
-                getUnrealPackage().file.write(data);
+                getUnrealPackage().file.writeBytes(data);
                 if (data.length != getSize()) {
                     size = data.length;
 
@@ -991,7 +991,7 @@ public class UnrealPackage implements AutoCloseable {
             } else {
                 if (eraseUnusedSpace) {
                     getUnrealPackage().file.setPosition(getOffset());
-                    getUnrealPackage().file.write(new byte[getSize()]);
+                    getUnrealPackage().file.writeBytes(new byte[getSize()]);
                 }
 
                 boolean isLast = getUnrealPackage().getExportTable()
@@ -1005,7 +1005,7 @@ public class UnrealPackage implements AutoCloseable {
                 getUnrealPackage().file.setPosition(newOffset);
                 offset = getUnrealPackage().file.getPosition();
                 size = data.length;
-                getUnrealPackage().file.write(data);
+                getUnrealPackage().file.writeBytes(data);
 
                 getUnrealPackage().file.setPosition(getUnrealPackage().getDataEndOffset().orElseThrow(IllegalStateException::new));
                 int nameTablePosition = getUnrealPackage().file.getPosition();

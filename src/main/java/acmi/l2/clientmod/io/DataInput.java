@@ -21,8 +21,6 @@
  */
 package acmi.l2.clientmod.io;
 
-import java.io.EOFException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -136,62 +134,7 @@ public interface DataInput {
     }
 
     static DataInput dataInput(InputStream inputStream, Charset charset, int position) {
-        return new DataInput() {
-            private int pos = position;
-
-            @Override
-            public Charset getCharset() {
-                return charset;
-            }
-
-            @Override
-            public int getPosition() {
-                return pos;
-            }
-
-            private void incCount(int value) {
-                int temp = pos + value;
-                if (temp < 0) {
-                    temp = Integer.MAX_VALUE;
-                }
-                pos = temp;
-            }
-
-            @Override
-            public int readUnsignedByte() throws UncheckedIOException {
-                try {
-                    int tmp = inputStream.read();
-                    if (tmp < 0)
-                        throw new EOFException();
-
-                    incCount(1);
-
-                    return tmp;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-
-            @Override
-            public void readFully(byte[] b, int off, int len) throws UncheckedIOException {
-                if (len < 0)
-                    throw new IndexOutOfBoundsException();
-
-                try {
-                    int n = 0;
-                    while (n < len) {
-                        int count = inputStream.read(b, off + n, len - n);
-                        if (count < 0)
-                            throw new EOFException();
-                        n += count;
-
-                        incCount(count);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
+        return new DataInputStream(inputStream, charset, position);
     }
 
     static DataInput dataInput(ByteBuffer buffer, Charset charset) {

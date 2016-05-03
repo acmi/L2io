@@ -176,7 +176,7 @@ public class RandomAccessFile implements RandomAccess {
         }
     }
 
-    public void write(int b) throws UncheckedIOException {
+    public void writeByte(int b) throws UncheckedIOException {
         try {
             if (cryptVer != 0)
                 file.write(b ^ xorKey);

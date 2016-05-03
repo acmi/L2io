@@ -80,7 +80,7 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
-    public void write(int b) {
+    public void writeByte(int b) {
         ensureCapacity(buffer.position() + 1);
 
         buffer.put((byte) b);
@@ -128,6 +128,6 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     public void writeTo(DataOutput output) throws UncheckedIOException {
-        output.write(buffer.array(), 0, buffer.limit());
+        output.writeBytes(buffer.array(), 0, buffer.limit());
     }
 }

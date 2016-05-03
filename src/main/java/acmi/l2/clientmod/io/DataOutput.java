@@ -30,50 +30,46 @@ import java.nio.charset.Charset;
 import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
 
 public interface DataOutput {
-    void write(int b) throws UncheckedIOException;
+    void writeByte(int b) throws UncheckedIOException;
 
-    default void write(byte[] b) throws UncheckedIOException {
-        write(b, 0, b.length);
+    default void writeBytes(byte[] b) throws UncheckedIOException {
+        writeBytes(b, 0, b.length);
     }
 
-    default void write(byte[] b, int off, int len) throws UncheckedIOException {
+    default void writeBytes(byte[] b, int off, int len) throws UncheckedIOException {
         if ((off | len | (b.length - (len + off)) | (off + len)) < 0)
             throw new IndexOutOfBoundsException();
 
         for (int i = 0; i < len; i++) {
-            write(b[off + i]);
+            writeByte(b[off + i]);
         }
     }
 
-    default void writeByte(int val) throws UncheckedIOException {
-        write(val);
-    }
-
     default void writeShort(int val) throws UncheckedIOException {
-        write((val) & 0xFF);
-        write((val >>> 8) & 0xFF);
+        writeByte((val) & 0xFF);
+        writeByte((val >>> 8) & 0xFF);
     }
 
     default void writeInt(int val) throws UncheckedIOException {
-        write((val) & 0xFF);
-        write((val >>> 8) & 0xFF);
-        write((val >>> 16) & 0xFF);
-        write((val >>> 24) & 0xFF);
+        writeByte((val) & 0xFF);
+        writeByte((val >>> 8) & 0xFF);
+        writeByte((val >>> 16) & 0xFF);
+        writeByte((val >>> 24) & 0xFF);
     }
 
     default void writeCompactInt(int val) throws UncheckedIOException {
-        write(compactIntToByteArray(val));
+        writeBytes(compactIntToByteArray(val));
     }
 
     default void writeLong(long val) throws UncheckedIOException {
-        write((int) val);
-        write((int) (val >> 8));
-        write((int) (val >> 16));
-        write((int) (val >> 24));
-        write((int) (val >> 32));
-        write((int) (val >> 40));
-        write((int) (val >> 48));
-        write((int) (val >> 56));
+        writeByte((int) val);
+        writeByte((int) (val >> 8));
+        writeByte((int) (val >> 16));
+        writeByte((int) (val >> 24));
+        writeByte((int) (val >> 32));
+        writeByte((int) (val >> 40));
+        writeByte((int) (val >> 48));
+        writeByte((int) (val >> 56));
     }
 
     default void writeFloat(float val) throws UncheckedIOException {
@@ -88,7 +84,7 @@ public interface DataOutput {
         else {
             byte[] strBytes = (s + '\0').getBytes(getCharset());
             writeCompactInt(strBytes.length);
-            write(strBytes);
+            writeBytes(strBytes);
         }
     }
 
@@ -98,7 +94,7 @@ public interface DataOutput {
         else {
             byte[] strBytes = (s + '\0').getBytes(Charset.forName("utf-16le"));
             writeCompactInt(-strBytes.length);
-            write(strBytes);
+            writeBytes(strBytes);
         }
     }
 
@@ -118,13 +114,13 @@ public interface DataOutput {
         else {
             byte[] strBytes = s.getBytes(Charset.forName("utf-16le"));
             writeInt(strBytes.length);
-            write(strBytes);
+            writeBytes(strBytes);
         }
     }
 
     default void writeByteArray(byte[] array) throws UncheckedIOException {
         writeCompactInt(array.length);
-        write(array);
+        writeBytes(array);
     }
 
     int getPosition() throws IOException;
@@ -134,49 +130,7 @@ public interface DataOutput {
     }
 
     static DataOutput dataOutput(OutputStream outputStream, Charset charset, int position) {
-        return new DataOutput() {
-            private int pos = position;
-
-            @Override
-            public Charset getCharset() {
-                return charset;
-            }
-
-            @Override
-            public int getPosition() {
-                return pos;
-            }
-
-            protected void incCount(int value) {
-                int temp = pos + value;
-                if (temp < 0) {
-                    temp = Integer.MAX_VALUE;
-                }
-                pos = temp;
-            }
-
-            @Override
-            public void write(int b) throws UncheckedIOException {
-                try {
-                    outputStream.write(b);
-
-                    incCount(1);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-
-            @Override
-            public void write(byte[] b, int off, int len) throws UncheckedIOException {
-                try {
-                    outputStream.write(b, off, len);
-
-                    incCount(len);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
+        return new DataOutputStream(outputStream, charset, position);
     }
 
     static DataOutput dataOutput(ByteBuffer buffer, Charset charset) {
