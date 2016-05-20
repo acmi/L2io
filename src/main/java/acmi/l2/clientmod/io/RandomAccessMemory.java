@@ -80,10 +80,36 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
+    public void readFully(byte[] b, int off, int len) throws UncheckedIOException {
+        if (b == null) {
+            throw new NullPointerException();
+        } else if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+        } else if (len == 0) {
+            return;
+        }
+
+        if (buffer.position() + len > buffer.limit())
+            throw new UncheckedIOException(new EOFException());
+
+        buffer.get(b, off, len);
+    }
+
+    @Override
     public void writeByte(int b) {
         ensureCapacity(buffer.position() + 1);
 
         buffer.put((byte) b);
+    }
+
+    @Override
+    public void writeBytes(byte[] b, int off, int len) throws UncheckedIOException {
+        if ((off < 0) || (off > b.length) || (len < 0) ||
+                ((off + len) - b.length > 0)) {
+            throw new IndexOutOfBoundsException();
+        }
+        ensureCapacity(buffer.position() + len);
+        buffer.put(b, off, len);
     }
 
     private void ensureCapacity(int minCapacity) {
