@@ -548,7 +548,11 @@ public class UnrealPackage implements AutoCloseable {
                             nameReference("Package"),
                             pckg,
                             nameReference(namePath[i]));
-                    if ((pckg = importTable.indexOf(importEntry)) == -1) {
+                    UnrealPackage.ImportEntry toFind = importEntry;
+                    if ((pckg = indexIf(importTable, ie -> toFind.objectPackage == ie.objectPackage &&
+                            toFind.objectName == ie.objectName &&
+                            toFind.classPackage == ie.classPackage &&
+                            toFind.className == ie.className)) == -1) {
                         importTable.add(importEntry);
                         pckg = importTable.size() - 1;
                     }
