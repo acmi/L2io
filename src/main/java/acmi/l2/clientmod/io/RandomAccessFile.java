@@ -176,6 +176,7 @@ public class RandomAccessFile implements RandomAccess {
         }
     }
 
+    @Override
     public void writeByte(int b) throws UncheckedIOException {
         try {
             if (cryptVer != 0)
@@ -187,7 +188,8 @@ public class RandomAccessFile implements RandomAccess {
         }
     }
 
-    public void write(byte[] b, int off, int len) throws UncheckedIOException {
+    @Override
+    public void writeBytes(byte[] b, int off, int len) throws UncheckedIOException {
         if ((off | len | (b.length - (len + off)) | (off + len)) < 0)
             throw new IndexOutOfBoundsException();
 
