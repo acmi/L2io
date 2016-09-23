@@ -325,12 +325,19 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     public int exportReferenceByName(String name, Predicate<String> classFilter) {
-        return getExportTable().parallelStream()
-                .filter(entry -> entry.getObjectInnerFullName().equalsIgnoreCase(name))
+        Optional<Integer> ref = getExportTable().parallelStream()
+                .filter(entry -> entry.getObjectFullName().equalsIgnoreCase(name))
                 .filter(entry -> classFilter.test(entry.getFullClassName()))
                 .findAny()
-                .map(ExportEntry::getObjectReference)
-                .orElse(0);
+                .map(ExportEntry::getObjectReference);
+        if (!ref.isPresent()) {
+            ref = getExportTable().parallelStream()
+                    .filter(entry -> entry.getObjectInnerFullName().equalsIgnoreCase(name))
+                    .filter(entry -> classFilter.test(entry.getFullClassName()))
+                    .findAny()
+                    .map(ExportEntry::getObjectReference);
+        }
+        return ref.orElse(0);
     }
 
     public void updateNameTable(Consumer<List<UnrealPackage.NameEntry>> transformation) throws UncheckedIOException {
