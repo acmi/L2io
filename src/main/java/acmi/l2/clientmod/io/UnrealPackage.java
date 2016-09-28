@@ -52,17 +52,17 @@ public class UnrealPackage implements AutoCloseable {
 
     public static final int UNREAL_PACKAGE_MAGIC = 0x9E2A83C1;
 
-    public static final int VERSION_OFFSET = 4;
-    public static final int LICENSEE_OFFSET = 6;
-    public static final int PACKAGE_FLAGS_OFFSET = 8;
-    public static final int NAME_COUNT_OFFSET = 12;
-    public static final int NAME_OFFSET_OFFSET = 16;
-    public static final int EXPORT_COUNT_OFFSET = 20;
-    public static final int EXPORT_OFFSET_OFFSET = 24;
-    public static final int IMPORT_COUNT_OFFSET = 28;
-    public static final int IMPORT_OFFSET_OFFSET = 32;
-    public static final int GUID_OFFSET = 36;
-    public static final int GENERATIONS_OFFSET = 52;
+    public static final int VERSION_OFFSET = 0x04;
+    public static final int LICENSEE_OFFSET = 0x06;
+    public static final int PACKAGE_FLAGS_OFFSET = 0x08;
+    public static final int NAME_COUNT_OFFSET = 0x0c;
+    public static final int NAME_OFFSET_OFFSET = 0x10;
+    public static final int EXPORT_COUNT_OFFSET = 0x14;
+    public static final int EXPORT_OFFSET_OFFSET = 0x18;
+    public static final int IMPORT_COUNT_OFFSET = 0x1c;
+    public static final int IMPORT_OFFSET_OFFSET = 0x20;
+    public static final int GUID_OFFSET = 0x24;
+    public static final int GENERATIONS_OFFSET = 0x34;
 
     private RandomAccess file;
 
