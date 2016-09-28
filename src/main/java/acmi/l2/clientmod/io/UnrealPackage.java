@@ -64,21 +64,21 @@ public class UnrealPackage implements AutoCloseable {
     public static final int GUID_OFFSET = 0x24;
     public static final int GENERATIONS_OFFSET = 0x34;
 
-    private RandomAccess file;
+    protected RandomAccess file;
 
-    private int version;
-    private int license;
-    private int flags;
+    protected int version;
+    protected int license;
+    protected int flags;
 
-    private List<NameEntry> names;
-    private List<ExportEntry> exports;
-    private List<ImportEntry> imports;
+    protected List<NameEntry> names;
+    protected List<ExportEntry> exports;
+    protected List<ImportEntry> imports;
 
-    private UUID uuid;
+    protected UUID uuid;
 
-    private List<Generation> generations;
+    protected List<Generation> generations;
 
-    private int headerEndOffset;
+    protected int headerEndOffset;
 
     public UnrealPackage(String path, boolean readOnly) throws UncheckedIOException {
         this(new RandomAccessFile(path, readOnly, defaultCharset));
@@ -201,7 +201,7 @@ public class UnrealPackage implements AutoCloseable {
         return names;
     }
 
-    private void readNameTable() throws UncheckedIOException {
+    protected void readNameTable() throws UncheckedIOException {
         file.setPosition(NAME_COUNT_OFFSET);
         int count = file.readInt();
         file.setPosition(getNameTableOffset());
@@ -217,7 +217,7 @@ public class UnrealPackage implements AutoCloseable {
         return exports;
     }
 
-    private void readExportTable() throws UncheckedIOException {
+    protected void readExportTable() throws UncheckedIOException {
         file.setPosition(EXPORT_COUNT_OFFSET);
         int count = file.readInt();
         file.setPosition(getExportTableOffset());
@@ -240,7 +240,7 @@ public class UnrealPackage implements AutoCloseable {
         return imports;
     }
 
-    private void readImportTable() throws UncheckedIOException {
+    protected void readImportTable() throws UncheckedIOException {
         file.setPosition(IMPORT_COUNT_OFFSET);
         int count = file.readInt();
         file.setPosition(getImportTableOffset());
@@ -417,7 +417,7 @@ public class UnrealPackage implements AutoCloseable {
         readExportTable();
     }
 
-    private void writeNameTable(List<NameEntry> nameTable) throws UncheckedIOException {
+    protected void writeNameTable(List<NameEntry> nameTable) throws UncheckedIOException {
         RandomAccessMemory buffer = new RandomAccessMemory(null, file.getCharset());
         for (NameEntry entry : nameTable) {
             buffer.writeLine(entry.getName());
@@ -426,7 +426,7 @@ public class UnrealPackage implements AutoCloseable {
         buffer.writeTo(file);
     }
 
-    private void writeImportTable(List<ImportEntry> importTable) throws UncheckedIOException {
+    protected void writeImportTable(List<ImportEntry> importTable) throws UncheckedIOException {
         RandomAccessMemory buffer = new RandomAccessMemory(null, file.getCharset());
         for (ImportEntry entry : importTable) {
             buffer.writeCompactInt(entry.classPackage);
@@ -437,7 +437,7 @@ public class UnrealPackage implements AutoCloseable {
         buffer.writeTo(file);
     }
 
-    private void writeExportTable(List<ExportEntry> exportTable) throws UncheckedIOException {
+    protected void writeExportTable(List<ExportEntry> exportTable) throws UncheckedIOException {
         RandomAccessMemory buffer = new RandomAccessMemory(null, file.getCharset());
         for (ExportEntry entry : exportTable) {
             buffer.writeCompactInt(entry.objectClass);
@@ -734,13 +734,13 @@ public class UnrealPackage implements AutoCloseable {
         });
     }
 
-    private static OptionalInt findPositionForNewExportEntryData(List<ExportEntry> exportTable, int size) {
+    protected static OptionalInt findPositionForNewExportEntryData(List<ExportEntry> exportTable, int size) {
         return getDataEndOffset(exportTable);
     }
 
-    private static final Predicate<String> IS_CLASS = clazz -> clazz.equalsIgnoreCase("Core.Class");
+    protected static final Predicate<String> IS_CLASS = clazz -> clazz.equalsIgnoreCase("Core.Class");
 
-    private static abstract class PackageEntry<T extends PackageEntry<T>> {
+    protected static abstract class PackageEntry<T extends PackageEntry<T>> {
         private final UnrealPackage unrealPackage;
         private final int index;
 
