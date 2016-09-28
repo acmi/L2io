@@ -95,6 +95,10 @@ public class UnrealPackage implements AutoCloseable {
     public UnrealPackage(RandomAccess file) throws UncheckedIOException {
         this.file = Objects.requireNonNull(file);
 
+        readHeader();
+    }
+
+    protected void readHeader() throws UncheckedIOException {
         file.setPosition(0);
 
         if (file.readInt() != UNREAL_PACKAGE_MAGIC)
