@@ -260,10 +260,12 @@ public class UnrealPackage implements AutoCloseable {
         imports = Collections.unmodifiableList(tmp);
     }
 
+    @Deprecated
     public UUID getUUID() {
         return uuid;
     }
 
+    @Deprecated
     public void setUUID(UUID uuid) throws UncheckedIOException {
         file.setPosition(GUID_OFFSET);
         file.writeBytes(uuidToBytes(uuid));
