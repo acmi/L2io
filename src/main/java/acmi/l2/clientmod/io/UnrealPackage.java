@@ -741,6 +741,13 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     protected static OptionalInt findPositionForNewExportEntryData(List<ExportEntry> exportTable, int size) {
+        List<ExportEntry> list = new ArrayList<>(exportTable);
+        list.sort(Comparator.comparingInt(ExportEntry::getOffset));
+        for (int i = 1; i < exportTable.size(); i++) {
+            int prevEnd = list.get(i - 1).getOffset() + list.get(i - 1).getSize();
+            if (list.get(i).getOffset() - prevEnd >= size)
+                return OptionalInt.of(prevEnd);
+        }
         return getDataEndOffset(exportTable);
     }
 
