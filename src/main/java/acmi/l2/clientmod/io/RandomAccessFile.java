@@ -138,6 +138,16 @@ public class RandomAccessFile implements RandomAccess {
     }
 
     @Override
+    public void skip(int n) throws UncheckedIOException {
+        try {
+            file.seek(file.getFilePointer() + n);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+
+    @Override
     public void close() throws UncheckedIOException {
         try {
             file.close();

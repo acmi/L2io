@@ -72,6 +72,14 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     @Override
+    public void skip(int n) throws UncheckedIOException {
+        if (buffer.position() + n >= buffer.limit())
+            throw new UncheckedIOException(new EOFException());
+
+        buffer.position(buffer.position() + n);
+    }
+
+    @Override
     public int readUnsignedByte() throws UncheckedIOException {
         if (buffer.position() >= buffer.limit())
             throw new UncheckedIOException(new EOFException());
