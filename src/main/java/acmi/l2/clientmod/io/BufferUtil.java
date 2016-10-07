@@ -26,6 +26,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ReadOnlyBufferException;
 import java.nio.charset.Charset;
+import java.security.AccessControlException;
 
 import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
 
@@ -36,7 +37,15 @@ import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
 public class BufferUtil {
     private static final Charset UTF16LE = Charset.forName("utf-16le");
 
-    private static Charset defaultCharset = Charset.forName(System.getProperty("BufferUtil.defaultCharset", "EUC-KR"));
+    private static Charset defaultCharset = Charset.forName("EUC-KR");
+
+    static {
+        try {
+            defaultCharset = Charset.forName(System.getProperty("BufferUtil.defaultCharset", "EUC-KR"));
+        } catch (AccessControlException e) {
+            System.err.println(e.getMessage());
+        }
+    }
 
     public static Charset getDefaultCharset() {
         return defaultCharset;

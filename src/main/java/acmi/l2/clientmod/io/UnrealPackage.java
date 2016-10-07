@@ -29,6 +29,7 @@ import java.lang.ref.SoftReference;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
+import java.security.AccessControlException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -40,7 +41,15 @@ import static acmi.l2.clientmod.util.CollectionsMethods.indexIf;
 
 @SuppressWarnings("unused")
 public class UnrealPackage implements AutoCloseable {
-    private static Charset defaultCharset = Charset.forName(System.getProperty("UnrealPackage.defaultCharset", "EUC-KR"));
+    private static Charset defaultCharset = Charset.forName("EUC-KR");
+
+    static {
+        try {
+            defaultCharset = Charset.forName(System.getProperty("UnrealPackage.defaultCharset", "EUC-KR"));
+        } catch (AccessControlException e) {
+            System.err.println(e.getMessage());
+        }
+    }
 
     public static Charset getDefaultCharset() {
         return defaultCharset;
@@ -925,7 +934,15 @@ public class UnrealPackage implements AutoCloseable {
     }
 
     public static final class ExportEntry extends Entry<ExportEntry> {
-        private static final boolean eraseUnusedSpace = Boolean.parseBoolean(System.getProperty("UnrealPackage.ExportEntry.eraseUnusedSpace", "false"));
+        private static boolean eraseUnusedSpace = false;
+
+        static {
+            try {
+                eraseUnusedSpace = Boolean.parseBoolean(System.getProperty("UnrealPackage.ExportEntry.eraseUnusedSpace", "false"));
+            } catch (AccessControlException e) {
+                System.err.println(e.getMessage());
+            }
+        }
 
         private int objectClass;
         private int objectSuperClass;
