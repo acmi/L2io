@@ -1,5 +1,5 @@
 group 'acmi.l2.clientmod'
-version '2.2.4'
+version '2.2.5'
 
 apply plugin: 'java'
 apply plugin: 'maven'
