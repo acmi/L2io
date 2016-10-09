@@ -438,6 +438,7 @@ public class UnrealPackage implements AutoCloseable {
             buffer.writeLine(entry.getName());
             buffer.writeInt(entry.getFlags());
         }
+        buffer.trimToPosition();
         buffer.writeTo(file);
     }
 
@@ -449,6 +450,7 @@ public class UnrealPackage implements AutoCloseable {
             buffer.writeInt(entry.objectPackage);
             buffer.writeCompactInt(entry.objectName);
         }
+        buffer.trimToPosition();
         buffer.writeTo(file);
     }
 
@@ -463,6 +465,7 @@ public class UnrealPackage implements AutoCloseable {
             buffer.writeCompactInt(entry.size);
             buffer.writeCompactInt(entry.offset);
         }
+        buffer.trimToPosition();
         buffer.writeTo(file);
     }
 
