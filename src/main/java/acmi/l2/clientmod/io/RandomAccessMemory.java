@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,16 +73,18 @@ public class RandomAccessMemory implements RandomAccess {
 
     @Override
     public void skip(int n) throws UncheckedIOException {
-        if (buffer.position() + n > buffer.limit())
+        if (buffer.position() + n > buffer.limit()) {
             throw new UncheckedIOException(new EOFException());
+        }
 
         buffer.position(buffer.position() + n);
     }
 
     @Override
     public int readUnsignedByte() throws UncheckedIOException {
-        if (buffer.position() >= buffer.limit())
+        if (buffer.position() >= buffer.limit()) {
             throw new UncheckedIOException(new EOFException());
+        }
 
         return buffer.get() & 0xff;
     }
@@ -97,8 +99,9 @@ public class RandomAccessMemory implements RandomAccess {
             return;
         }
 
-        if (buffer.position() + len > buffer.limit())
+        if (buffer.position() + len > buffer.limit()) {
             throw new UncheckedIOException(new EOFException());
+        }
 
         buffer.get(b, off, len);
     }
@@ -121,10 +124,12 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     private void ensureCapacity(int minCapacity) {
-        if (minCapacity > buffer.capacity())
+        if (minCapacity > buffer.capacity()) {
             grow(minCapacity);
-        if (minCapacity > buffer.limit())
+        }
+        if (minCapacity > buffer.limit()) {
             buffer.limit(minCapacity);
+        }
     }
 
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
@@ -133,10 +138,12 @@ public class RandomAccessMemory implements RandomAccess {
         // overflow-conscious code
         int oldCapacity = buffer.capacity();
         int newCapacity = oldCapacity << 1;
-        if (newCapacity - minCapacity < 0)
+        if (newCapacity - minCapacity < 0) {
             newCapacity = minCapacity;
-        if (newCapacity - MAX_ARRAY_SIZE > 0)
+        }
+        if (newCapacity - MAX_ARRAY_SIZE > 0) {
             newCapacity = hugeCapacity(minCapacity);
+        }
         int limit = buffer.limit();
         int position = buffer.position();
         buffer = ByteBuffer.wrap(Arrays.copyOf(buffer.array(), newCapacity));
@@ -145,8 +152,9 @@ public class RandomAccessMemory implements RandomAccess {
     }
 
     private static int hugeCapacity(int minCapacity) {
-        if (minCapacity < 0) // overflow
+        if (minCapacity < 0) { // overflow
             throw new OutOfMemoryError();
+        }
         return (minCapacity > MAX_ARRAY_SIZE) ?
                 Integer.MAX_VALUE :
                 MAX_ARRAY_SIZE;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,13 +21,13 @@
  */
 package acmi.l2.clientmod.io;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
 import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
+import static java.nio.charset.StandardCharsets.UTF_16LE;
 
 public interface DataOutput {
     void writeByte(int b) throws UncheckedIOException;
@@ -37,8 +37,9 @@ public interface DataOutput {
     }
 
     default void writeBytes(byte[] b, int off, int len) throws UncheckedIOException {
-        if ((off | len | (b.length - (len + off)) | (off + len)) < 0)
+        if ((off | len | (b.length - (len + off)) | (off + len)) < 0) {
             throw new IndexOutOfBoundsException();
+        }
 
         for (int i = 0; i < len; i++) {
             writeByte(b[off + i]);
@@ -79,9 +80,9 @@ public interface DataOutput {
     Charset getCharset();
 
     default void writeBytes(String s) throws UncheckedIOException {
-        if (s == null || s.isEmpty())
+        if (s == null || s.isEmpty()) {
             writeCompactInt(0);
-        else {
+        } else {
             byte[] strBytes = (s + '\0').getBytes(getCharset());
             writeCompactInt(strBytes.length);
             writeBytes(strBytes);
@@ -89,19 +90,19 @@ public interface DataOutput {
     }
 
     default void writeChars(String s) throws UncheckedIOException {
-        if (s == null || s.isEmpty())
+        if (s == null || s.isEmpty()) {
             writeCompactInt(0);
-        else {
-            byte[] strBytes = (s + '\0').getBytes(Charset.forName("utf-16le"));
+        } else {
+            byte[] strBytes = (s + '\0').getBytes(UTF_16LE);
             writeCompactInt(-strBytes.length);
             writeBytes(strBytes);
         }
     }
 
     default void writeLine(String s) throws UncheckedIOException {
-        if (s == null || s.isEmpty())
+        if (s == null || s.isEmpty()) {
             writeCompactInt(0);
-        else if (getCharset() != null && getCharset().canEncode() && getCharset().newEncoder().canEncode(s)) {
+        } else if (getCharset() != null && getCharset().canEncode() && getCharset().newEncoder().canEncode(s)) {
             writeBytes(s);
         } else {
             writeChars(s);
@@ -109,10 +110,10 @@ public interface DataOutput {
     }
 
     default void writeUTF(String s) throws UncheckedIOException {
-        if (s == null || s.isEmpty())
+        if (s == null || s.isEmpty()) {
             writeInt(0);
-        else {
-            byte[] strBytes = s.getBytes(Charset.forName("utf-16le"));
+        } else {
+            byte[] strBytes = s.getBytes(UTF_16LE);
             writeInt(strBytes.length);
             writeBytes(strBytes);
         }

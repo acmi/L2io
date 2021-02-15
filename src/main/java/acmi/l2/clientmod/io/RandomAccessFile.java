@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+
+import static java.nio.charset.StandardCharsets.UTF_16LE;
 
 public class RandomAccessFile implements RandomAccess {
     protected final java.io.RandomAccessFile file;
@@ -81,14 +83,15 @@ public class RandomAccessFile implements RandomAccess {
     private static String getCryptHeader(java.io.RandomAccessFile file) throws IOException {
         byte[] l2CryptHeaderBytes = new byte[28];
         file.readFully(l2CryptHeaderBytes);
-        return new String(l2CryptHeaderBytes, "UTF-16LE");
+        return new String(l2CryptHeaderBytes, UTF_16LE);
     }
 
     private static int getCryptKey(String filename) {
         filename = filename.toLowerCase();
         int ind = 0;
-        for (int i = 0; i < filename.length(); i++)
+        for (int i = 0; i < filename.length(); i++) {
             ind += filename.charAt(i);
+        }
         return ind & 0xff;
     }
 
@@ -161,25 +164,28 @@ public class RandomAccessFile implements RandomAccess {
         try {
             if (cryptVer != 0) {
                 int b = file.read();
-                if (b < 0)
+                if (b < 0) {
                     throw new EOFException();
+                }
 
                 return (b ^ xorKey) & 0xff;
-            } else
+            } else {
                 return file.read();
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     @Override
-    public void readFully(byte b[], int off, int len) throws UncheckedIOException {
+    public void readFully(byte[] b, int off, int len) throws UncheckedIOException {
         try {
             file.readFully(b, off, len);
 
             if (cryptVer != 0) {
-                for (int i = 0; i < len; i++)
+                for (int i = 0; i < len; i++) {
                     b[off + i] ^= xorKey;
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -189,10 +195,11 @@ public class RandomAccessFile implements RandomAccess {
     @Override
     public void writeByte(int b) throws UncheckedIOException {
         try {
-            if (cryptVer != 0)
+            if (cryptVer != 0) {
                 file.write(b ^ xorKey);
-            else
+            } else {
                 file.write(b);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -200,14 +207,16 @@ public class RandomAccessFile implements RandomAccess {
 
     @Override
     public void writeBytes(byte[] b, int off, int len) throws UncheckedIOException {
-        if ((off | len | (b.length - (len + off)) | (off + len)) < 0)
+        if ((off | len | (b.length - (len + off)) | (off + len)) < 0) {
             throw new IndexOutOfBoundsException();
+        }
 
         try {
             if (cryptVer != 0) {
                 byte[] toWrite = Arrays.copyOfRange(b, off, off + len);
-                for (int i = 0; i < toWrite.length; i++)
+                for (int i = 0; i < toWrite.length; i++) {
                     toWrite[i] ^= xorKey;
+                }
                 file.write(toWrite);
             } else {
                 file.write(b, off, len);

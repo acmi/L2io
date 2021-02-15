@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,9 +26,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 
 public class BufferedRandomAccessFile implements RandomAccess {
-    private RandomAccessMemory memory;
-    private RandomAccessFile file;
-    private boolean readOnly;
+    private final RandomAccessMemory memory;
+    private final RandomAccessFile file;
+    private final boolean readOnly;
 
     public BufferedRandomAccessFile(File f, boolean readOnly, Charset charset) {
         String name = f.getName().substring(0, f.getName().lastIndexOf('.'));
@@ -41,8 +41,9 @@ public class BufferedRandomAccessFile implements RandomAccess {
 
         memory = new RandomAccessMemory(name, data, charset);
 
-        if (readOnly)
+        if (readOnly) {
             file.close();
+        }
     }
 
     private BufferedRandomAccessFile(RandomAccessMemory memory, RandomAccessFile file, boolean readOnly) {
@@ -68,15 +69,17 @@ public class BufferedRandomAccessFile implements RandomAccess {
 
     @Override
     public void setPosition(int position) throws UncheckedIOException {
-        if (!readOnly)
+        if (!readOnly) {
             file.setPosition(position);
+        }
         memory.setPosition(position);
     }
 
     @Override
     public void trimToPosition() throws UncheckedIOException {
-        if (!readOnly)
+        if (!readOnly) {
             file.trimToPosition();
+        }
         memory.trimToPosition();
     }
 
@@ -93,8 +96,9 @@ public class BufferedRandomAccessFile implements RandomAccess {
 
     @Override
     public void close() throws UncheckedIOException {
-        if (!readOnly)
+        if (!readOnly) {
             file.close();
+        }
         memory.close();
     }
 
@@ -110,15 +114,17 @@ public class BufferedRandomAccessFile implements RandomAccess {
 
     @Override
     public void writeByte(int b) throws UncheckedIOException {
-        if (!readOnly)
+        if (!readOnly) {
             file.writeByte(b);
+        }
         memory.writeByte(b);
     }
 
     @Override
     public void writeBytes(byte[] b, int off, int len) throws UncheckedIOException {
-        if (!readOnly)
+        if (!readOnly) {
             file.writeBytes(b, off, len);
+        }
         memory.writeBytes(b, off, len);
     }
 }

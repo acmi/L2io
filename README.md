@@ -1,5 +1,8 @@
 l2io
 ====
+![GitHub](https://img.shields.io/github/license/acmi/l2io)
+[![](https://jitpack.io/v/acmi/l2io.svg)](https://jitpack.io/#acmi/l2io)
+
 Lineage 2 client files I/O library.
 
 Usage
@@ -48,14 +51,14 @@ Maven
 -----
 ```maven
 <repository>
-    <id>l2io-github</id>
-    <url>https://raw.githubusercontent.com/acmi/L2io/mvn-repo</url>
+    <id>jitpack.io</id>
+    <url>https://jitpack.io</url>
 </repository>
 
 <dependency>
-    <groupId>acmi.l2.clientmod</groupId>
+    <groupId>com.github.acmi</groupId>
     <artifactId>l2io</artifactId>
-    <version>2.2.+</version>
+    <version>2.2.6</version>
 </dependency>
 ```
 
@@ -63,10 +66,10 @@ Gradle
 ------
 ```gradle
 repositories {
-    maven { url "https://raw.githubusercontent.com/acmi/L2io/mvn-repo" }
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
-    compile group:'acmi.l2.clientmod', name:'l2io', version: '2.2.+'
+    compile group:'com.github.acmi', name:'l2io', version: '2.2.6'
 }
 ```

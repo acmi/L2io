@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,14 +29,13 @@ import java.nio.charset.Charset;
 import java.security.AccessControlException;
 
 import static acmi.l2.clientmod.io.ByteUtil.compactIntToByteArray;
+import static java.nio.charset.StandardCharsets.UTF_16LE;
 
 /**
  * @deprecated use {@link RandomAccess#randomAccess(ByteBuffer, String, Charset, int)}
  */
 @Deprecated
 public class BufferUtil {
-    private static final Charset UTF16LE = Charset.forName("utf-16le");
-
     private static Charset defaultCharset = Charset.forName("EUC-KR");
 
     static {
@@ -70,12 +69,13 @@ public class BufferUtil {
     public static String getString(ByteBuffer buffer, Charset charset) throws BufferUnderflowException {
         int len = getCompactInt(buffer);
 
-        if (len == 0)
+        if (len == 0) {
             return "";
+        }
 
         byte[] bytes = new byte[len > 0 ? len : -2 * len];
         buffer.get(bytes);
-        return new String(bytes, 0, bytes.length - (len > 0 ? 1 : 2), len > 0 ? charset : UTF16LE);
+        return new String(bytes, 0, bytes.length - (len > 0 ? 1 : 2), len > 0 ? charset : UTF_16LE);
     }
 
     public static void putString(ByteBuffer buffer, String str) throws BufferOverflowException, ReadOnlyBufferException {
@@ -83,11 +83,11 @@ public class BufferUtil {
     }
 
     public static void putString(ByteBuffer buffer, String str, Charset charset) throws BufferOverflowException, ReadOnlyBufferException {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             putCompactInt(buffer, 0);
-        else if (charset != null)
+        } else if (charset != null) {
             putBytes(buffer, str, charset);
-        else {
+        } else {
             try {
                 if (defaultCharset.newEncoder().canEncode(str)) {
                     putBytes(buffer, str, defaultCharset);
@@ -104,9 +104,9 @@ public class BufferUtil {
     }
 
     public static void putBytes(ByteBuffer buffer, String str, Charset charset) throws BufferOverflowException, ReadOnlyBufferException {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             putCompactInt(buffer, 0);
-        else {
+        } else {
             byte[] strBytes = (str + '\0').getBytes(charset);
             putCompactInt(buffer, strBytes.length);
             buffer.put(strBytes);
@@ -114,10 +114,10 @@ public class BufferUtil {
     }
 
     public static void putChars(ByteBuffer buffer, String str) throws BufferOverflowException, ReadOnlyBufferException {
-        if (str == null || str.isEmpty())
+        if (str == null || str.isEmpty()) {
             putCompactInt(buffer, 0);
-        else {
-            byte[] strBytes = (str + '\0').getBytes(UTF16LE);
+        } else {
+            byte[] strBytes = (str + '\0').getBytes(UTF_16LE);
             putCompactInt(buffer, -strBytes.length);
             buffer.put(strBytes);
         }
@@ -126,22 +126,24 @@ public class BufferUtil {
     public static String getUTF(ByteBuffer buffer) throws BufferUnderflowException {
         int len = buffer.getInt();
 
-        if (len < 0)
+        if (len < 0) {
             throw new IllegalStateException("Invalid string length: " + len);
+        }
 
-        if (len == 0)
+        if (len == 0) {
             return "";
+        }
 
         byte[] bytes = new byte[len];
         buffer.get(bytes);
-        return new String(bytes, UTF16LE);
+        return new String(bytes, UTF_16LE);
     }
 
     public static void putUTF(ByteBuffer buffer, String str) throws BufferOverflowException, ReadOnlyBufferException {
         if (str == null || str.isEmpty()) {
             buffer.putInt(0);
         } else {
-            byte[] bytes = str.getBytes(UTF16LE);
+            byte[] bytes = str.getBytes(UTF_16LE);
             buffer.putInt(bytes.length);
             buffer.put(bytes);
         }

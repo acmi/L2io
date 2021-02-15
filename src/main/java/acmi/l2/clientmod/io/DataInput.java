@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,10 +26,13 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
+import static java.nio.charset.StandardCharsets.UTF_16LE;
+
 public interface DataInput {
     default void skip(int n) throws UncheckedIOException {
-        if (n <= 0)
+        if (n <= 0) {
             return;
+        }
 
         for (byte[] skipBuffer = new byte[0x1000]; n > skipBuffer.length; n -= skipBuffer.length) {
             readFully(skipBuffer);
@@ -41,7 +44,7 @@ public interface DataInput {
         readFully(b, 0, b.length);
     }
 
-    default void readFully(byte b[], int off, int len) throws UncheckedIOException {
+    default void readFully(byte[] b, int off, int len) throws UncheckedIOException {
         if (b == null) {
             throw new NullPointerException();
         } else if (off < 0 || len < 0 || len > b.length - off) {
@@ -50,8 +53,9 @@ public interface DataInput {
             return;
         }
 
-        for (int i = 0; i < len; i++)
+        for (int i = 0; i < len; i++) {
             b[off + i] = (byte) readUnsignedByte();
+        }
     }
 
     int readUnsignedByte() throws UncheckedIOException;
@@ -94,33 +98,37 @@ public interface DataInput {
     default String readLine() throws UncheckedIOException {
         int len = readCompactInt();
 
-        if (len == 0)
+        if (len == 0) {
             return "";
+        }
 
         byte[] bytes = new byte[len > 0 ? len : -2 * len];
         readFully(bytes);
-        return new String(bytes, 0, bytes.length - (len > 0 ? 1 : 2), len > 0 && getCharset() != null ? getCharset() : Charset.forName("utf-16le"));
+        return new String(bytes, 0, bytes.length - (len > 0 ? 1 : 2), len > 0 && getCharset() != null ? getCharset() : UTF_16LE);
     }
 
     default String readUTF() throws UncheckedIOException {
         int len = readInt();
 
-        if (len < 0)
+        if (len < 0) {
             throw new IllegalStateException("Invalid string length: " + len);
+        }
 
-        if (len == 0)
+        if (len == 0) {
             return "";
+        }
 
         byte[] bytes = new byte[len];
         readFully(bytes);
-        return new String(bytes, Charset.forName("utf-16le"));
+        return new String(bytes, UTF_16LE);
     }
 
     default byte[] readByteArray() throws UncheckedIOException {
         int len = readCompactInt();
 
-        if (len < 0)
+        if (len < 0) {
             throw new IllegalStateException("Invalid array length: " + len);
+        }
 
         byte[] array = new byte[len];
         readFully(array);

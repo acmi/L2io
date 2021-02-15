@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,9 +28,11 @@ import java.util.function.Predicate;
 public class CollectionsMethods {
     public static <T> int indexIf(List<T> list, Predicate<T> condition) {
         ListIterator<T> it = list.listIterator();
-        while (it.hasNext())
-            if (condition.test(it.next()))
+        while (it.hasNext()) {
+            if (condition.test(it.next())) {
                 return it.previousIndex();
+            }
+        }
         return -1;
     }
 }

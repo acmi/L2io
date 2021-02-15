@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,16 +59,18 @@ public class DataInputStream extends FilterInputStream implements DataInput {
     @Override
     public int read() throws IOException {
         int tmp = in.read();
-        if (tmp >= 0)
+        if (tmp >= 0) {
             incCount(1);
+        }
         return tmp;
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         int tmp = in.read(b, off, len);
-        if (tmp >= 0)
+        if (tmp >= 0) {
             incCount(tmp);
+        }
         return tmp;
     }
 
@@ -76,8 +78,9 @@ public class DataInputStream extends FilterInputStream implements DataInput {
     public int readUnsignedByte() throws UncheckedIOException {
         try {
             int tmp = read();
-            if (tmp < 0)
+            if (tmp < 0) {
                 throw new EOFException();
+            }
             return tmp;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -86,15 +89,17 @@ public class DataInputStream extends FilterInputStream implements DataInput {
 
     @Override
     public void readFully(byte[] b, int off, int len) throws UncheckedIOException {
-        if (len < 0)
+        if (len < 0) {
             throw new IndexOutOfBoundsException();
+        }
 
         try {
             int n = 0;
             while (n < len) {
                 int count = read(b, off + n, len - n);
-                if (count < 0)
+                if (count < 0) {
                     throw new EOFException();
+                }
                 n += count;
             }
         } catch (IOException e) {

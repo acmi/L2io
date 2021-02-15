@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 acmi
+ * Copyright (c) 2021 acmi
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,9 @@ public class ByteUtil {
         v = Math.abs(v);
         byte[] bytes = new byte[sizeOfCompactInt(v)];
 
-        if (negative) bytes[0] |= 0b10000000;
+        if (negative) {
+            bytes[0] |= 0b10000000;
+        }
 
         bytes[0] |= v & 0b00111111;
         v >>= 6;
@@ -40,8 +42,9 @@ public class ByteUtil {
         if (v > 0) {
             bytes[0] |= 0b01000000;
             for (int i = 1; i < bytes.length; i++) {
-                if (i != bytes.length - 1)
+                if (i != bytes.length - 1) {
                     bytes[i] |= 0b10000000;
+                }
                 bytes[i] |= v & 0b01111111;
                 v >>= 7;
             }
@@ -52,16 +55,17 @@ public class ByteUtil {
     public static int sizeOfCompactInt(int i) {
         i = Math.abs(i);
 
-        if (i >= 1 << (6 + 7 + 7 + 7))
+        if (i >= 1 << (6 + 7 + 7 + 7)) {
             return 5;
-        else if (i >= 1 << (6 + 7 + 7))
+        } else if (i >= 1 << (6 + 7 + 7)) {
             return 4;
-        else if (i >= 1 << (6 + 7))
+        } else if (i >= 1 << (6 + 7)) {
             return 3;
-        else if (i >= 1 << (6))
+        } else if (i >= 1 << (6)) {
             return 2;
-        else
+        } else {
             return 1;
+        }
     }
 
     public static int compactIntFromBytes(IntSupplier unsignedByteSupplier) {
@@ -70,24 +74,28 @@ public class ByteUtil {
         for (int i = 0; i < 5; i++) {
             int x = unsignedByteSupplier.getAsInt();
             if (i == 0) {
-                if ((x & 0x80) > 0)
+                if ((x & 0x80) > 0) {
                     signed = true;
+                }
                 output |= (x & 0x3F);
-                if ((x & 0x40) == 0)
+                if ((x & 0x40) == 0) {
                     break;
+                }
             } else if (i == 4) {
                 output |= (x & 0x1F) << (6 + (3 * 7));
             } else {
                 output |= (x & 0x7F) << (6 + ((i - 1) * 7));
-                if ((x & 0x80) == 0)
+                if ((x & 0x80) == 0) {
                     break;
+                }
             }
         }
         if (signed) {
-            if (output == 0)
+            if (output == 0) {
                 return Integer.MIN_VALUE;
-            else
+            } else {
                 return -output;
+            }
         } else {
             return output;
         }
